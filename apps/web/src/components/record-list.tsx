@@ -1565,12 +1565,14 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
           : [...responses, response];
         const allDone = nextResponses.length > 0 && nextResponses.every((item) => item.status !== "pending");
 
-        return {
+        const nextRecord = {
           ...record,
           assignmentStatus: allDone ? "done" : record.assignmentStatus,
           status: allDone ? "done" : record.status,
           taskResponses: nextResponses
         };
+        void updateFamilyRecord(nextRecord).catch(() => false);
+        return nextRecord;
       })
     );
     const record = localRecords.find((item) => item.id === recordId);
