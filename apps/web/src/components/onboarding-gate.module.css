@@ -160,7 +160,7 @@
 .secondary { background: #efefed; color: #333; }
 
 .stepHeader { display: grid; gap: 9px; margin-bottom: 5px; }
-.progress { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 10px; }
+.progress { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
 .progress i { height: 3px; border-radius: 999px; background: #e4e4e1; }
 .progress i.active { background: #111; }
 
@@ -185,6 +185,16 @@
 .field select:focus { border-color: #777; box-shadow: 0 0 0 4px rgba(17, 17, 17, 0.06); }
 .field input::placeholder { color: #aaa; }
 .field small { color: #888; font-size: 11px; line-height: 1.5; }
+.installGuide {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #dededb;
+  border-radius: 18px;
+  padding: 18px;
+  background: #fafaf8;
+}
+.installGuide strong { font-size: 13px; }
+.installGuide p { margin: 0; color: #666; font-size: 14px; line-height: 1.7; }
 .actions { display: grid; grid-template-columns: minmax(96px, 0.36fr) minmax(0, 1fr); gap: 10px; margin-top: 4px; }
 
 @media (max-width: 520px) {

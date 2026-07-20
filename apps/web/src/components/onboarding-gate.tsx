@@ -7,8 +7,9 @@ import styles from "./onboarding-gate.module.css";
 const onboardingStorageKey = "family-app.onboarding.v1";
 const settingsStorageKey = "family-app.settings.v1";
 
-type OnboardingStep = "welcome" | "network" | "ai";
+type OnboardingStep = "welcome" | "network" | "ai" | "install";
 type ThemeFamily = "mono" | "dopamine";
+type InstallPlatform = "ios" | "android" | "desktop";
 type OnboardingProviderKind = "deepseek" | "kimi" | "qwen" | "zhipu" | "volcengine" | "hunyuan" | "gemini" | "anthropic" | "openai";
 
 const onboardingProviderPresets: Array<{
@@ -48,8 +49,10 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   const [apiKey, setApiKey] = useState("");
   const [themeFamily, setThemeFamily] = useState<ThemeFamily>("mono");
   const [providerKind, setProviderKind] = useState<OnboardingProviderKind>("deepseek");
+  const [installPlatform, setInstallPlatform] = useState<InstallPlatform>("desktop");
 
   useEffect(() => {
+    setInstallPlatform(detectInstallPlatform());
     try {
       const storedSettings = JSON.parse(window.localStorage.getItem(settingsStorageKey) || "{}") as StoredSettings;
       const storedThemeFamily = storedSettings.themeFamily === "dopamine" ? "dopamine" : "mono";
@@ -180,6 +183,20 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
             </label>
             <div className={styles.actions}>
               <button className={styles.secondary} onClick={() => setStep("network")} type="button">返回</button>
+              <button className={styles.primary} onClick={() => setStep("install")} type="button">下一步</button>
+            </div>
+          </div>
+        ) : null}
+
+        {step === "install" ? (
+          <div className={styles.form}>
+            <StepHeader current={3} title="添加到桌面" description="可选，随时可以完成。" />
+            <div className={styles.installGuide}>
+              <strong>{installPlatformCopy[installPlatform].label}</strong>
+              <p>{installPlatformCopy[installPlatform].instruction}</p>
+            </div>
+            <div className={styles.actions}>
+              <button className={styles.secondary} onClick={() => setStep("ai")} type="button">返回</button>
               <button className={styles.primary} onClick={completeOnboarding} type="button">进入家庭空间</button>
             </div>
           </div>
@@ -205,17 +222,39 @@ function Brand({ className = "" }: { className?: string }) {
   );
 }
 
-function StepHeader({ current, description, title }: { current: 1 | 2; description?: string; title: string }) {
+function StepHeader({ current, description, title }: { current: 1 | 2 | 3; description?: string; title: string }) {
   return (
     <header className={styles.stepHeader}>
-      <div aria-label={`设置进度 ${current}/2`} className={styles.progress}>
-        {[1, 2].map((step) => <i aria-current={current === step ? "step" : undefined} className={current >= step ? styles.active : ""} key={step} />)}
+      <div aria-label={`设置进度 ${current}/3`} className={styles.progress}>
+        {[1, 2, 3].map((step) => <i aria-current={current === step ? "step" : undefined} className={current >= step ? styles.active : ""} key={step} />)}
       </div>
-      <p className={styles.eyebrow}>{current} / 2</p>
+      <p className={styles.eyebrow}>{current} / 3</p>
       <h1>{title}</h1>
       {description ? <p className={styles.lead}>{description}</p> : null}
     </header>
   );
+}
+
+const installPlatformCopy: Record<InstallPlatform, { instruction: string; label: string }> = {
+  ios: {
+    label: "iPhone / iPad",
+    instruction: "在 Safari 中点分享按钮，再选择“添加到主屏幕”。"
+  },
+  android: {
+    label: "Android",
+    instruction: "打开浏览器菜单，选择“安装应用”或“添加到主屏幕”。"
+  },
+  desktop: {
+    label: "电脑",
+    instruction: "点击地址栏右侧的安装图标，再选择“安装”。"
+  }
+};
+
+function detectInstallPlatform(): InstallPlatform {
+  const userAgent = navigator.userAgent;
+  if (/iPad|iPhone|iPod/i.test(userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) return "ios";
+  if (/Android/i.test(userAgent)) return "android";
+  return "desktop";
 }
 
 function normalizePublicDomain(value: string) {
