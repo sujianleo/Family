@@ -56,6 +56,15 @@ read_env() {
   sed -n "s/^$2=//p" "$1" | tail -n 1
 }
 
+ensure_secret() {
+  target=$1
+  key=$2
+  current=$(read_env "$target" "$key")
+  case "$current" in
+    ""|replace-with-*) set_env "$target" "$key" "$(openssl rand -hex 32)" ;;
+  esac
+}
+
 require_command docker
 require_command git
 require_command openssl
@@ -132,6 +141,10 @@ set_env "$APP_ENV" NEXT_PUBLIC_SUPABASE_ANON_KEY "$ANON_KEY"
 set_env "$APP_ENV" SUPABASE_INTERNAL_URL "http://host.docker.internal:${API_PORT}"
 set_env "$APP_ENV" SUPABASE_SERVICE_ROLE_KEY "$SERVICE_ROLE_KEY"
 set_env "$APP_ENV" SUPABASE_VOICE_BUCKET voice-notes
+ensure_secret "$APP_ENV" FAMILY_APP_CONFIRMATION_SECRET
+ensure_secret "$APP_ENV" INVITE_CODE_SECRET
+ensure_secret "$APP_ENV" GUEST_CHAT_SESSION_SECRET
+ensure_secret "$APP_ENV" GUEST_CHAT_CODE_SECRET
 
 printf '正在启动我爱饭米粒…\n'
 (cd "$PROJECT_ROOT" && docker compose up --build -d --wait)
