@@ -11,6 +11,8 @@ export type NavItem = {
 };
 
 type FamilyHubPageProps = {
+  demoDataEnabled: boolean;
+  demoRecordIds: string[];
   familyMembers: FamilyMember[];
   familyRecords: FamilyRecord[];
   initialMemberId: string;
@@ -19,6 +21,8 @@ type FamilyHubPageProps = {
 };
 
 export function FamilyHubPage({
+  demoDataEnabled,
+  demoRecordIds,
   familyMembers,
   familyRecords,
   initialMemberId,
@@ -33,7 +37,14 @@ export function FamilyHubPage({
         <main className="app-shell">
           <section className="workspace">
             <div className="columns">
-              <RecordList initialMemberId={initialMemberId} members={familyMembers} navItems={navItems} records={familyRecords} />
+              <RecordList
+                demoDataEnabled={demoDataEnabled}
+                demoRecordIds={demoRecordIds}
+                initialMemberId={initialMemberId}
+                members={familyMembers}
+                navItems={navItems}
+                records={familyRecords}
+              />
             </div>
           </section>
         </main>

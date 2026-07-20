@@ -25,6 +25,8 @@ export default async function HomePage() {
   ];
   return (
     <FamilyHubPage
+      demoDataEnabled={demoDataEnabled}
+      demoRecordIds={familyRecords.map((record) => record.id)}
       familyMembers={membersWithOverrides}
       familyRecords={initialRecords}
       initialMemberId={initialMemberId}

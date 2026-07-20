@@ -226,6 +226,8 @@ async function startFallbackVoiceCapture({
 
 type TopTab = "任务" | "群组";
 type RecordListProps = {
+  demoDataEnabled: boolean;
+  demoRecordIds: string[];
   initialMemberId: string;
   members: FamilyMember[];
   navItems: NavItem[];
@@ -541,10 +543,11 @@ const chatDismissTravelRatio = 0.92;
 const chatDismissCloseProgress = 0.38;
 const chatDismissCloseVelocity = 0.85;
 
-export function RecordList({ initialMemberId, members, records }: RecordListProps) {
+export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, members, records }: RecordListProps) {
   const activeTab: TopTab = "任务";
   const [sessionMemberId, setSessionMemberId] = useState(initialMemberId || currentMemberId);
   const [perspectiveMembers, setPerspectiveMembers] = useState(members);
+  const demoRecordIdSet = useMemo(() => new Set(demoRecordIds), [demoRecordIds]);
   currentMemberId = sessionMemberId;
   const initialSessionMember = members.find((member) => member.id === sessionMemberId);
 
@@ -712,7 +715,11 @@ export function RecordList({ initialMemberId, members, records }: RecordListProp
       shouldMigrateLegacyAvatar && legacyAvatarProfile ? recordListStorageKeys.avatarProfile : memberAvatarProfileKey,
       sessionMember
     );
-    const hydratedRecords = mergeRecordDisplayDefaults(loadStoredJson<FamilyRecord[]>(memberRecordsKey), records);
+    const storedRecords = loadStoredJson<FamilyRecord[]>(memberRecordsKey);
+    const storedRecordsForMode = demoDataEnabled
+      ? storedRecords
+      : storedRecords?.filter((record) => !demoRecordIdSet.has(record.id)) || null;
+    const hydratedRecords = mergeRecordDisplayDefaults(storedRecordsForMode, records);
     const deepLinkedRecordId = new URLSearchParams(window.location.search).get("record");
     const deepLinkedRecord = hydratedRecords.find((record) => record.id === deepLinkedRecordId);
     setLocalRecords(hydratedRecords);
@@ -733,7 +740,7 @@ export function RecordList({ initialMemberId, members, records }: RecordListProp
     setSelectedTaskId(deepLinkedRecord?.kind === "task" ? deepLinkedRecord.id : null);
     setSelectedResourceId(deepLinkedRecord && ["note", "link", "media"].includes(deepLinkedRecord.kind) ? deepLinkedRecord.id : null);
     setClientStorageHydrated(true);
-  }, [members, records, sessionMemberId]);
+  }, [demoDataEnabled, demoRecordIdSet, members, records, sessionMemberId]);
 
   useEffect(() => {
     if (!clientStorageHydrated || deepLinkHandledRef.current) return;
@@ -781,7 +788,9 @@ export function RecordList({ initialMemberId, members, records }: RecordListProp
             return;
           }
 
-          const serverRecords = readFamilyRecordsResponse(payload);
+          const serverRecords = readFamilyRecordsResponse(payload).filter(
+            (record) => demoDataEnabled || !demoRecordIdSet.has(record.id)
+          );
           if (!serverRecords.length) {
             return;
           }
@@ -795,7 +804,7 @@ export function RecordList({ initialMemberId, members, records }: RecordListProp
       active = false;
       cancelIdleFetch();
     };
-  }, [clientStorageHydrated, sessionMemberId]);
+  }, [clientStorageHydrated, demoDataEnabled, demoRecordIdSet, sessionMemberId]);
 
   useEffect(() => {
     if (!clientStorageHydrated) {
