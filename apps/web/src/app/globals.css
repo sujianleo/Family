@@ -837,28 +837,6 @@ html:has(.settings-layer.dragging, .notification-backdrop.dragging) .app-shell {
   box-shadow: none;
 }
 
-.family-empty-state {
-  display: grid;
-  flex: 1 0 auto;
-  min-height: 0;
-  place-items: center;
-  padding: 0 12px 12dvh;
-  text-align: center;
-}
-
-.family-empty-state p {
-  max-width: 320px;
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--type-body-sm);
-  line-height: 1.65;
-}
-
-.family-empty-state strong {
-  color: var(--accent-strong);
-  font-weight: 760;
-}
-
   .tabs {
     display: none;
   }
