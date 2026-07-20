@@ -26,6 +26,7 @@
   align-items: center;
   align-self: start;
   gap: 13px;
+  justify-self: center;
 }
 
 .logo {
@@ -112,6 +113,9 @@
   letter-spacing: -0.045em;
   line-height: 1.08;
 }
+
+.shell .welcome h1,
+.shell .stepHeader h1 { color: #0e0e0e !important; }
 
 .lead {
   margin: 0;
