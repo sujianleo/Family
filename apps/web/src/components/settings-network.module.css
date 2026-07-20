@@ -1,0 +1,179 @@
+.networkTest {
+  display: flex;
+  width: fit-content;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 11px 0 8px;
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--surface-tint));
+  box-shadow: none;
+  color: var(--accent-strong);
+  font-size: 10px;
+  font-weight: 720;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.networkTest:not(:disabled):hover {
+  background: color-mix(in srgb, var(--accent-soft) 78%, var(--surface-tint));
+  transform: translateY(-1px);
+}
+
+.networkTest:not(:disabled):active { transform: translateY(0) scale(.99); }
+.networkTest:disabled { cursor: wait; opacity: .7; }
+
+.icon {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.testing .icon { animation: spin 900ms linear infinite; }
+.success { background: color-mix(in srgb, var(--green) 7%, var(--surface-tint)); color: var(--green); }
+.success .icon { background: color-mix(in srgb, var(--green) 12%, transparent); }
+.failed { color: color-mix(in srgb, #d93c36 82%, var(--text-strong)); }
+.failed .icon { background: color-mix(in srgb, #ff5e57 13%, transparent); }
+:global(html[data-visual-theme="mono"]) .failed { background: var(--surface-tint); color: var(--text-strong); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.endpointField {
+  min-height: 48px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.endpointRow {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  min-height: 24px;
+  align-items: center;
+  gap: 9px;
+  padding: 1px 4px;
+}
+
+.endpointRow + .endpointRow {
+  border-top: 0;
+}
+
+.endpointRow > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.endpointRow input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-bottom: 0;
+  outline: 0;
+  padding: 4px 2px;
+  background: transparent;
+  color: var(--text-strong);
+  font-size: 11px;
+}
+
+.endpointRow input:not(:focus) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.endpointField .portInput {
+  justify-self: start;
+  width: 64px;
+}
+
+.endpointField input:focus {
+  background: transparent;
+  box-shadow: none;
+}
+
+.localControls {
+  display: grid;
+  min-height: 42px;
+  align-items: center;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.localControls .ipField {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.ipField {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 42px;
+  align-items: center;
+  border: 0;
+  border-radius: 13px;
+  padding: 2px 10px;
+  background: var(--settings-field-bg);
+  box-shadow: none;
+}
+
+.ipSegments {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+  min-width: 0;
+}
+
+.ipSegment {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+}
+
+.ipSegment:last-child { grid-template-columns: minmax(0, 1fr); }
+
+.ipSegment input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-bottom: 0;
+  outline: 0;
+  padding: 6px 1px;
+  background: transparent;
+  color: var(--text-strong);
+  font-size: 11px;
+  text-align: center;
+}
+
+.ipSegment input:focus {
+  background: transparent;
+  box-shadow: none;
+}
+.ipSegment i { color: var(--soft); font-size: 13px; font-style: normal; }
+
+:global(html[data-color-scheme="dark"]) .endpointRow > span,
+:global(html[data-color-scheme="dark"]) .ipSegment i { color: #666a70; }
+
+:global(html[data-color-scheme="dark"]) .ipSegment input,
+:global(html[data-color-scheme="dark"]) .endpointField input { color: #1f2326; }
+
+/* Keep every secondary network label on the same homepage text rhythm. */
+.endpointRow > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+}

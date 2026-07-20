@@ -1,0 +1,2 @@
+# Local backend fallback for browser voice input.
+faster-whisper==1.2.1

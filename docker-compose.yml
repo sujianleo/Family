@@ -1,0 +1,17 @@
+services:
+  family-app:
+    build:
+      context: ./apps/web
+    ports:
+      - "3000:3000"
+    environment:
+      FAMILY_APP_ALLOW_FILE_FALLBACK: "true"
+      NEXT_PUBLIC_FAMILY_APP_AUTH_REQUIRED: "false"
+      FAMILY_APP_AUTH_REQUIRED: "false"
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+    volumes:
+      - family-app-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  family-app-data:

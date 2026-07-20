@@ -1,0 +1,41 @@
+flowchart TD
+  User["用户输入 / UI 操作"] --> RecordList["components/record-list.tsx<br/>handleSubmit"]
+
+  RecordList --> Router["lib/assistantRouter.ts<br/>routeAssistantInput"]
+
+  Router -->|kind: action| ActionClient["lib/automations.ts<br/>runAutomationAction"]
+  Router -->|kind: pipeline| PipelineClient["lib/automations.ts<br/>runAutomationPipeline"]
+  Router -->|kind: automation| MatchedUnit["lib/automationRegistry.ts<br/>matchAutomationUnit"]
+  Router -->|fallback| ComposerIntent["lib/composerIntent.ts<br/>建群 / 任务建议"]
+
+  MatchedUnit --> ActionClient
+  MatchedUnit --> PipelineClient
+
+  ActionClient --> API["app/api/automation-actions/route.ts<br/>POST /api/automation-actions"]
+  PipelineClient --> API
+
+  API --> Registry["lib/automationRegistry.ts<br/>Action / Pipeline 定义"]
+  API --> Runner["lib/server/automationRunner.ts<br/>执行入口"]
+
+  Registry --> Actions["automationActions<br/>app.answer<br/>profile.describe<br/>group.create<br/>task.create.*<br/>meta.summary.*<br/>meta.profiles.refresh"]
+  Registry --> Pipelines["automationPipelines<br/>pipeline.meta.daily_rollup<br/>pipeline.meta.profile_learning<br/>pipeline.chat.save_to_library<br/>pipeline.task.ai_create"]
+
+  Runner -->|runAutomationAction| ActionExec["Action 分支<br/>按 action.id 执行"]
+  Runner -->|runAutomationPipeline| PipelineExec["Pipeline 分支<br/>按 steps 调 Action"]
+
+  PipelineExec --> ActionExec
+
+  ActionExec --> AppAnswer["appAnswer.ts<br/>回答家庭数据问题"]
+  ActionExec --> MetaSummary["metaSummary.ts<br/>写 summary"]
+  ActionExec --> MemberProfiles["memberProfiles.ts<br/>读写人物画像"]
+  ActionExec --> MetaEvents["data/meta-events.jsonl<br/>追加 automation_run"]
+  ActionExec --> MockData["mockData.ts<br/>家人 / 记录基础数据"]
+
+  API --> Response["JSON result"]
+  Response --> RecordList
+  RecordList --> Feedback["界面反馈<br/>automationFeedback / temporaryVoiceStatus"]
+
+  GuestChat["guest/chat/[slug]/page.tsx<br/>附件选择"] --> MetaAPI["app/api/meta-events/route.ts<br/>POST / GET"]
+  Smoke["scripts/attachment-smoke.ts<br/>附件 smoke 验证"] --> MetaAPI
+  MetaAPI --> AttachmentEvent["group_attachment_selected<br/>metadata.files"]
+  AttachmentEvent --> MetaEvents

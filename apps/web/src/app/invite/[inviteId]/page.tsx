@@ -1,0 +1,225 @@
+"use client";
+
+import Image from "next/image";
+import { use, useEffect, useState } from "react";
+import { AvatarImage, avatarUrl } from "@/components/avatar";
+import { familyFetch, isLocalFamilyAuth } from "@/lib/familyApi";
+import { normalizePhoneNumber } from "@/lib/phoneAuth";
+import { supabase } from "@/lib/supabase";
+import styles from "./invite.module.css";
+
+type InvitePreview = {
+  expiresAt: string;
+  familyName?: string;
+  id: string;
+  inviterName?: string;
+  relationshipLabel?: string;
+  avatarSeed?: string;
+  remainingUses: number;
+  status: "active" | "expired" | "revoked";
+  targetName?: string;
+  title?: string;
+  type: "family" | "group";
+  verified: boolean;
+};
+
+const avatarOptions = ["youth-man", "long-haired-woman", "teen-boy", "glasses-woman"];
+
+export default function InvitePage({ params }: { params: Promise<{ inviteId: string }> }) {
+  const { inviteId } = use(params);
+  const [invite, setInvite] = useState<InvitePreview | null>(null);
+  const [code, setCode] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [avatarSeed, setAvatarSeed] = useState(avatarOptions[0]);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordRepeat, setPasswordRepeat] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [destination, setDestination] = useState("");
+
+  useEffect(() => {
+    const embeddedCode = new URLSearchParams(window.location.search).get("code")?.replace(/\D/g, "").slice(0, 4) || "";
+    if (embeddedCode) setCode(embeddedCode);
+    fetch(embeddedCode.length === 4 ? `/api/invites/${encodeURIComponent(inviteId)}/verify` : `/api/invites/${encodeURIComponent(inviteId)}`, embeddedCode.length === 4 ? { body: JSON.stringify({ code: embeddedCode }), headers: { "content-type": "application/json" }, method: "POST" } : { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({})) as { detail?: string; invite?: InvitePreview };
+        if (!response.ok || !payload.invite) throw new Error(payload.detail || "邀请不存在。");
+        setInvite(payload.invite);
+      })
+      .catch((error) => setMessage(error instanceof Error ? error.message : "邀请不存在。"));
+    void refreshSession();
+  }, [inviteId]);
+
+  async function refreshSession() {
+    const cloudSession = supabase ? (await supabase.auth.getSession()).data.session : null;
+    if (cloudSession) {
+      setSignedIn(true);
+      return;
+    }
+    if (isLocalFamilyAuth()) {
+      const response = await fetch("/api/auth/session", { cache: "no-store" }).catch(() => null);
+      setSignedIn(Boolean(response?.ok));
+    }
+  }
+
+  async function verifyCode(event: React.FormEvent) {
+    event.preventDefault();
+    if (!/^\d{4}$/.test(code)) return setMessage("请输入 4 位验证码。");
+    setBusy(true);
+    setMessage("");
+    const response = await fetch(`/api/invites/${encodeURIComponent(inviteId)}/verify`, { body: JSON.stringify({ code }), headers: { "content-type": "application/json" }, method: "POST" }).catch(() => null);
+    setBusy(false);
+    const payload = response ? await response.json().catch(() => ({})) as { detail?: string; invite?: InvitePreview } : {};
+    if (!response?.ok || !payload.invite) return setMessage(payload.detail || "暂时无法验证邀请。");
+    setInvite(payload.invite);
+    setDisplayName(payload.invite.targetName || "");
+  }
+
+  async function sendOtp() {
+    const normalized = normalizePhoneNumber(phone);
+    if (!normalized) return setMessage("请输入正确的手机号。");
+    if (!supabase) return setMessage("手机号登录服务尚未配置。");
+    setBusy(true);
+    const { error } = await supabase.auth.signInWithOtp({ phone: normalized, options: { shouldCreateUser: true } });
+    setBusy(false);
+    if (error) return setMessage("验证码发送失败，请稍后再试。");
+    setPhone(normalized);
+    setOtpSent(true);
+    setMessage("短信验证码已发送。");
+  }
+
+  async function registerFamilyAccount() {
+    const normalized = normalizePhoneNumber(phone);
+    if (!normalized) return setMessage("请输入正确的手机号。");
+    if (password.length < 8) return setMessage("密码至少需要 8 位。");
+    if (password !== passwordRepeat) return setMessage("两次输入的密码不一致。");
+    if (!supabase) return setMessage("家庭注册服务尚未配置。");
+    setBusy(true);
+    setMessage("");
+    const { data, error } = await supabase.auth.signUp({ phone: normalized, password, options: { data: { display_name: displayName.trim() } } });
+    setBusy(false);
+    if (error) return setMessage(error.message.includes("already") ? "这个手机号已经注册，请直接登录。" : "注册失败，请稍后再试。");
+    setPhone(normalized);
+    if (data.session) {
+      setSignedIn(true);
+      setMessage("账号已创建。请提交加入申请。");
+      return;
+    }
+    setOtpSent(true);
+    setMessage("短信验证码已发送，验证后即可提交申请。");
+  }
+
+  async function confirmOtp() {
+    if (!supabase || !/^\d{6}$/.test(otp)) return setMessage("请输入 6 位短信验证码。");
+    setBusy(true);
+    const { error } = await supabase.auth.verifyOtp({ phone, token: otp, type: "sms" });
+    setBusy(false);
+    if (error) return setMessage("短信验证码不正确或已过期。");
+    setSignedIn(true);
+    setMessage("身份已确认，可以加入了。");
+  }
+
+  async function signInWith(provider: "apple" | "keycloak") {
+    if (!supabase) return setMessage("登录服务尚未配置。");
+    const redirectTo = window.location.href;
+    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
+    if (error) setMessage("暂时无法打开登录，请稍后再试。");
+  }
+
+  async function accept() {
+    if (!displayName.trim()) return setMessage("请填写你在这里的称呼。");
+    setBusy(true);
+    setMessage("");
+    const response = await familyFetch(`/api/invites/${encodeURIComponent(inviteId)}/accept`, {
+      body: JSON.stringify({ avatar_url: avatarUrl(avatarSeed, displayName), code, display_name: displayName }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    }).catch(() => null);
+    setBusy(false);
+    const payload = response ? await response.json().catch(() => ({})) as { detail?: string; membership?: { entry_path?: string; status?: string } } : {};
+    if (!response?.ok) {
+      if (response?.status === 401) setSignedIn(false);
+      return setMessage(payload.detail || "加入失败，请稍后再试。");
+    }
+    if (invite?.type === "family") {
+      setMessage("加入申请已发送给家庭管理员。确认前还不能进入家庭。");
+      return;
+    }
+    setDestination(payload.membership?.entry_path || "/");
+    setMessage("已经加入群聊。");
+  }
+
+  const unavailable = invite && invite.status !== "active";
+  return (
+    <main className={styles.shell}>
+      <section className={styles.card}>
+        <Image alt="饭米粒" className={styles.logo} height={72} priority src="/family-logo-v2-192.png" width={72} />
+        <span className={styles.eyebrow}>{invite?.type === "family" ? "邀请家人" : "邀请朋友加入讨论"}</span>
+        <h1>{invite?.verified ? (invite.title || (invite.type === "family" ? "加入这个家庭" : "加入这个群聊")) : "验证邀请"}</h1>
+
+        {!invite && !message ? <p className={styles.muted}>正在检查邀请…</p> : null}
+        {unavailable ? <div className={styles.notice}>{invite.status === "revoked" ? "这个邀请已经撤销。" : "这个邀请已经过期或使用次数已满。"}</div> : null}
+
+        {invite && !invite.verified && !unavailable ? (
+          <form className={styles.stack} onSubmit={verifyCode}>
+            <p className={styles.muted}>链接只用于找到邀请。请输入邀请人提供的 4 位验证码，验证后才会显示家庭或群聊信息。</p>
+            <input aria-label="4 位邀请验证码" autoComplete="one-time-code" className={styles.code} inputMode="numeric" maxLength={4} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} placeholder="0000" value={code} />
+            <button className={styles.primary} disabled={busy} type="submit">{busy ? "正在验证…" : "验证邀请"}</button>
+          </form>
+        ) : null}
+
+        {invite?.verified && !destination ? (
+          <div className={styles.stack}>
+            <dl className={styles.summary}>
+              {invite.inviterName ? <><dt>邀请人</dt><dd>{invite.inviterName}</dd></> : null}
+              {invite.familyName ? <><dt>家庭</dt><dd>{invite.familyName}</dd></> : null}
+              {invite.relationshipLabel ? <><dt>身份</dt><dd>{invite.relationshipLabel}</dd></> : null}
+              <dt>有效期</dt><dd>{formatExpiry(invite.expiresAt)}</dd>
+            </dl>
+
+            {!signedIn ? (
+              <div className={styles.signIn}>
+                <h2>{invite.type === "family" ? "创建你的家庭账号" : "先确认是你"}</h2>
+                <p className={styles.muted}>{invite.type === "family" ? "手机号和密码会成为你今后的登录凭证。注册后仍需家庭管理员确认。" : "登录用于在换设备后找回群聊身份。邀请链接不会替你登录。"}</p>
+                {invite.type === "family" ? (
+                  <>
+                    <input aria-label="手机号" autoComplete="tel" inputMode="tel" onChange={(event) => setPhone(event.target.value)} placeholder="手机号" value={phone} />
+                    <input aria-label="设置密码" autoComplete="new-password" minLength={8} onChange={(event) => setPassword(event.target.value)} placeholder="设置密码（至少 8 位）" type="password" value={password} />
+                    <input aria-label="确认密码" autoComplete="new-password" minLength={8} onChange={(event) => setPasswordRepeat(event.target.value)} placeholder="再次输入密码" type="password" value={passwordRepeat} />
+                    <button className={styles.primary} disabled={busy} onClick={() => void registerFamilyAccount()} type="button">{busy ? "正在注册…" : "注册并验证手机号"}</button>
+                    {otpSent ? <div className={styles.phoneRow}><input aria-label="短信验证码" inputMode="numeric" maxLength={6} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} placeholder="6 位验证码" value={otp} /><button disabled={busy} onClick={() => void confirmOtp()} type="button">验证</button></div> : null}
+                  </>
+                ) : (
+                  <>
+                    <div className={styles.phoneRow}><input aria-label="手机号" inputMode="tel" onChange={(event) => setPhone(event.target.value)} placeholder="手机号" value={phone} /><button disabled={busy} onClick={() => void sendOtp()} type="button">发送验证码</button></div>
+                    {otpSent ? <div className={styles.phoneRow}><input aria-label="短信验证码" inputMode="numeric" maxLength={6} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} placeholder="6 位验证码" value={otp} /><button disabled={busy} onClick={() => void confirmOtp()} type="button">登录</button></div> : null}
+                    <div className={styles.providers}><button onClick={() => void signInWith("apple")} type="button">Apple 登录</button><button disabled={process.env.NEXT_PUBLIC_WECHAT_AUTH_PROVIDER !== "keycloak"} onClick={() => void signInWith("keycloak")} type="button">微信登录</button></div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className={styles.identity}>
+                <label>你的称呼<input maxLength={40} onChange={(event) => setDisplayName(event.target.value)} placeholder="例如：小王" value={displayName} /></label>
+                <div className={styles.avatars} aria-label="选择头像">{avatarOptions.map((seed) => <button aria-pressed={avatarSeed === seed} className={avatarSeed === seed ? styles.selected : ""} key={seed} onClick={() => setAvatarSeed(seed)} type="button"><AvatarImage alt="" decoding="sync" height={48} label={displayName} loading="eager" seed={seed} width={48} /></button>)}</div>
+                <button className={styles.primary} disabled={busy} onClick={() => void accept()} type="button">{busy ? "正在提交…" : invite.type === "family" ? "提交加入申请" : "加入这个群聊"}</button>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {destination ? <a className={styles.primary} href={destination}>进入{invite?.type === "family" ? "家庭" : "群聊"}</a> : null}
+        {message ? <p className={styles.message} role="status">{message}</p> : null}
+        <p className={styles.boundary}>{invite?.type === "group" ? "访客只能看到当前群聊和群文件，不能查看家庭资料、成员画像、历史记录或 AI 记忆。" : "注册不会自动授予家庭权限；只有管理员确认后，账号才会绑定家庭成员身份。"}</p>
+      </section>
+    </main>
+  );
+}
+
+function formatExpiry(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "24 小时内" : date.toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}

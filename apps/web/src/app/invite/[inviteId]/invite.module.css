@@ -1,0 +1,23 @@
+.shell { min-height: 100svh; display: grid; place-items: center; padding: 24px 16px; background: radial-gradient(circle at 50% 0%, #eff8ef 0, transparent 42%), #f5f4ef; color: #202321; }
+.card { width: min(100%, 440px); padding: 28px 24px 22px; border: 1px solid rgba(32,35,33,.1); border-radius: 28px; background: rgba(255,255,255,.94); box-shadow: 0 24px 70px rgba(39,48,42,.12); text-align: center; }
+.logo { border-radius: 20px; }
+.eyebrow { display: block; margin-top: 14px; color: #51805b; font-size: 13px; font-weight: 750; }
+.card h1 { margin: 5px 0 18px; font-size: 27px; letter-spacing: -.03em; }
+.card h2 { margin: 0 0 6px; font-size: 18px; }
+.stack { display: grid; gap: 14px; }
+.muted, .boundary, .message { margin: 0; color: #6c746f; font-size: 14px; line-height: 1.55; }
+.code { width: 170px; margin: 0 auto; padding: 13px 16px; border: 1px solid #ccd3ce; border-radius: 16px; outline: 0; font: 800 26px/1 ui-monospace, monospace; letter-spacing: .3em; text-align: center; }
+.primary { display: grid; min-height: 48px; place-items: center; border: 0; border-radius: 16px; padding: 0 18px; color: #fff; background: #477b55; font-size: 15px; font-weight: 750; text-decoration: none; }
+.primary:disabled { opacity: .55; }
+.notice { padding: 14px; border-radius: 16px; color: #865027; background: #fff3df; }
+.summary { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; padding: 15px 17px; border-radius: 17px; background: #f5f7f3; text-align: left; }
+.summary dt { color: #7b827d; font-size: 13px; }.summary dd { margin: 0; font-weight: 700; }
+.signIn, .identity { display: grid; gap: 12px; padding-top: 2px; }
+.phoneRow { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.phoneRow input, .identity input, .signIn > input { min-width: 0; padding: 12px 13px; border: 1px solid #ccd3ce; border-radius: 13px; font-size: 15px; }
+.phoneRow button, .providers button { border: 1px solid #cfd6d1; border-radius: 13px; padding: 0 13px; background: #fff; color: #303632; font-weight: 680; }
+.providers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }.providers button { min-height: 43px; }.providers button:disabled { opacity: .45; }
+.identity label { display: grid; gap: 7px; color: #666f69; font-size: 13px; font-weight: 700; text-align: left; }
+.avatars { display: flex; justify-content: center; gap: 8px; }.avatars button { display: grid; width: 58px; height: 58px; place-items: center; border: 2px solid transparent; border-radius: 18px; background: #f4f5f2; }.avatars button.selected { border-color: #5a8c64; }.avatars img { border-radius: 14px; }
+.message { color: #477b55; font-weight: 650; }.boundary { margin-top: 18px; padding-top: 16px; border-top: 1px solid #eceeea; font-size: 12px; }
+@media (max-width: 420px) { .card { padding: 24px 18px 20px; border-radius: 24px; }.phoneRow { grid-template-columns: 1fr; }.phoneRow button { min-height: 42px; } }
