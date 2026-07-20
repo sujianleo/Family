@@ -48,7 +48,6 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   const [apiKey, setApiKey] = useState("");
   const [themeFamily, setThemeFamily] = useState<ThemeFamily>("mono");
   const [providerKind, setProviderKind] = useState<OnboardingProviderKind>("deepseek");
-  const [message, setMessage] = useState("");
 
   useEffect(() => {
     try {
@@ -78,13 +77,8 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   function continueFromNetwork(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const domain = normalizePublicDomain(publicDomain);
-    if (!domain) {
-      setMessage("请填写公网地址。");
-      return;
-    }
     setPublicDomain(domain);
     setLanAddress(normalizeLanAddress(lanAddress));
-    setMessage("");
     setStep("ai");
   }
 
@@ -101,7 +95,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
     const providers = upsertAiProvider(storedSettings.providers, providerKind, apiKey.trim());
     window.localStorage.setItem(settingsStorageKey, JSON.stringify({
       ...storedSettings,
-      activeNetwork: "internet",
+      activeNetwork: publicTarget.host ? "internet" : normalizedLan ? "local" : null,
       lanIp: normalizedLan,
       networkMode: "auto",
       providers,
@@ -122,8 +116,6 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   return (
     <main className={`${styles.shell} ${themeFamily === "dopamine" ? styles.dopamine : ""}`.trim()}>
       <section aria-label="新用户引导" className={styles.card}>
-        {step !== "welcome" ? <Brand /> : null}
-
         {step === "welcome" ? (
           <div className={styles.welcome}>
             <Brand className={styles.welcomeBrand} />
@@ -153,7 +145,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
 
         {step === "network" ? (
           <form className={styles.form} onSubmit={continueFromNetwork}>
-            <StepHeader current={1} title="设置访问地址" description="填写公网地址，确认局域网地址。" />
+            <StepHeader current={1} title="设置访问地址" />
             <label className={styles.field}>
               <span>公网地址</span>
               <input autoCapitalize="none" autoCorrect="off" onChange={(event) => setPublicDomain(event.target.value)} placeholder="family.example.com" spellCheck={false} value={publicDomain} />
@@ -162,7 +154,6 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
               <span>局域网地址 <em>可修改</em></span>
               <input autoCapitalize="none" autoCorrect="off" onChange={(event) => setLanAddress(event.target.value)} placeholder="192.168.1.100" spellCheck={false} value={lanAddress} />
             </label>
-            {message ? <p className={styles.message} role="alert">{message}</p> : null}
             <div className={styles.actions}>
               <button className={styles.secondary} onClick={() => setStep("welcome")} type="button">返回</button>
               <button className={styles.primary} type="submit">下一步</button>
@@ -214,7 +205,7 @@ function Brand({ className = "" }: { className?: string }) {
   );
 }
 
-function StepHeader({ current, description, title }: { current: 1 | 2; description: string; title: string }) {
+function StepHeader({ current, description, title }: { current: 1 | 2; description?: string; title: string }) {
   return (
     <header className={styles.stepHeader}>
       <div aria-label={`设置进度 ${current}/2`} className={styles.progress}>
@@ -222,7 +213,7 @@ function StepHeader({ current, description, title }: { current: 1 | 2; descripti
       </div>
       <p className={styles.eyebrow}>{current} / 2</p>
       <h1>{title}</h1>
-      <p className={styles.lead}>{description}</p>
+      {description ? <p className={styles.lead}>{description}</p> : null}
     </header>
   );
 }
@@ -265,6 +256,7 @@ function isPrivateIpv4Address(hostname: string) {
 }
 
 function parsePublicTarget(value: string) {
+  if (!value.trim()) return { host: "", port: "" };
   const target = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
   return { host: target.hostname, port: target.port || (target.protocol === "http:" ? "80" : "443") };
 }

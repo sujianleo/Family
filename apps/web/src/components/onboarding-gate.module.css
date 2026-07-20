@@ -47,6 +47,8 @@
   padding: 34px 0 24px;
 }
 
+.form { grid-row: 1 / -1; }
+
 .welcome {
   grid-row: 1 / -1;
   padding: 0;
@@ -183,7 +185,6 @@
 .field select:focus { border-color: #777; box-shadow: 0 0 0 4px rgba(17, 17, 17, 0.06); }
 .field input::placeholder { color: #aaa; }
 .field small { color: #888; font-size: 11px; line-height: 1.5; }
-.message { margin: -4px 0 0; color: #9a4438; font-size: 12px; }
 .actions { display: grid; grid-template-columns: minmax(96px, 0.36fr) minmax(0, 1fr); gap: 10px; margin-top: 4px; }
 
 @media (max-width: 520px) {
