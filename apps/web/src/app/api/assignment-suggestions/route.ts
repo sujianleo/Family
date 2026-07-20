@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { resolveFamilyMemberMention, suggestAssignment } from "@/lib/assignment";
-import { familyMembers } from "@/lib/mockData";
 import { invokeTaskExtractChain } from "@/lib/server/ai/chains/task-extract.chain";
 import type { TaskExtractOutput } from "@/lib/server/ai/schemas/task.schema";
 import { classifyTaskIntent, inferTaskActionType, inferTaskOptions, normalizeTaskTitle, parseTaskReminder, type TaskIntent } from "@/lib/taskIntent";
 import type { AssignmentSuggestion, FamilyMember } from "@/lib/types";
 import { FamilyRequestContextError, requireFamilyRequestContext } from "@/lib/server/familyRequestContext";
+import { readFamilyMembersForContext } from "@/lib/server/familyMembers";
 
 export const runtime = "nodejs";
 
@@ -14,7 +14,7 @@ const suggestionCache = new Map<string, AssignmentSuggestionWithSource>();
 
 export async function POST(request: Request) {
   try {
-    await requireFamilyRequestContext(request);
+    const context = await requireFamilyRequestContext(request);
     const body = (await request.json()) as Partial<AssignmentSuggestionPayload>;
     const text = readString(body.text);
 
@@ -22,11 +22,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ detail: "缺少需要派发的内容。" }, { status: 400 });
     }
 
+    const familyMembers = await readFamilyMembersForContext(context);
+    const familyMemberIds = new Set(familyMembers.map((member) => member.id));
     const mentionedMemberIds = Array.isArray(body.mentioned_member_ids)
       ? body.mentioned_member_ids.filter((id): id is string => typeof id === "string")
+        .filter((id) => familyMemberIds.has(id))
       : [];
     const contextTab = readString(body.context_tab) || "群聊";
-    const senderMemberId = readString(body.sender_member_id) || "me";
+    const requestedSenderMemberId = readString(body.sender_member_id);
+    const senderMemberId = context.userId === "local-development" && familyMemberIds.has(requestedSenderMemberId)
+      ? requestedSenderMemberId
+      : context.memberId;
     const timeZone = validTimeZone(readString(body.time_zone)) || "Asia/Shanghai";
     const receivedAt = new Date();
     const reminder = parseTaskReminder(text, receivedAt, timeZone);
@@ -35,9 +41,9 @@ export async function POST(request: Request) {
       mentionedMemberIds,
       senderMemberId
     }, receivedAt, timeZone);
-    const localSuggestion = suggestLocalSuggestion(text, senderMemberId, mentionedMemberIds, contextTab, taskIntent);
+    const localSuggestion = suggestLocalSuggestion(text, familyMembers, senderMemberId, mentionedMemberIds, contextTab, taskIntent);
     const deterministicSuggestion =
-      suggestOpenVolunteerQuestion(text, senderMemberId, taskIntent) ||
+      suggestOpenVolunteerQuestion(text, familyMembers, senderMemberId, taskIntent) ||
       (taskIntent.taskKind === "family_help" ||
       taskIntent.taskKind === "health_followup" ||
       taskIntent.taskKind === "personal_todo" ||
@@ -45,7 +51,7 @@ export async function POST(request: Request) {
       Boolean(taskIntent.dueAt)
         ? localSuggestion
         : null);
-    const suggestion = deterministicSuggestion || (await requestDeepSeekSuggestion(text, senderMemberId, mentionedMemberIds, contextTab)) || localSuggestion;
+    const suggestion = deterministicSuggestion || (await requestDeepSeekSuggestion(text, familyMembers, senderMemberId, mentionedMemberIds, contextTab)) || localSuggestion;
 
     return NextResponse.json({
       suggested_assignees: suggestion.suggestedAssignees,
@@ -87,6 +93,7 @@ type AssignmentSuggestionWithSource = AssignmentSuggestion & {
 
 async function requestDeepSeekSuggestion(
   text: string,
+  familyMembers: FamilyMember[],
   senderMemberId: string,
   mentionedMemberIds: string[],
   contextTab: string
@@ -121,7 +128,7 @@ async function requestDeepSeekSuggestion(
       return null;
     }
 
-    const suggestion = normalizeDeepSeekSuggestion(json, text, senderMemberId);
+    const suggestion = normalizeDeepSeekSuggestion(json, text, familyMembers, senderMemberId);
 
     if (suggestion) {
       suggestionCache.set(cacheKey, suggestion);
@@ -137,7 +144,7 @@ async function requestDeepSeekSuggestion(
   }
 }
 
-function normalizeDeepSeekSuggestion(json: TaskExtractOutput, text: string, senderMemberId: string): AssignmentSuggestionWithSource | null {
+function normalizeDeepSeekSuggestion(json: TaskExtractOutput, text: string, familyMembers: FamilyMember[], senderMemberId: string): AssignmentSuggestionWithSource | null {
   const assigneeIds = Array.isArray(json.suggested_assignee_ids) ? json.suggested_assignee_ids : [];
   const normalizedAssigneeIds = assigneeIds.length > 0 ? assigneeIds : [senderMemberId || "me"];
   const assignees = normalizedAssigneeIds
@@ -169,9 +176,9 @@ function normalizeDeepSeekSuggestion(json: TaskExtractOutput, text: string, send
   };
 }
 
-function suggestLocalSuggestion(text: string, senderMemberId: string, mentionedMemberIds: string[], _contextTab: string, taskIntent: TaskIntent): AssignmentSuggestionWithSource {
+function suggestLocalSuggestion(text: string, familyMembers: FamilyMember[], senderMemberId: string, mentionedMemberIds: string[], _contextTab: string, taskIntent: TaskIntent): AssignmentSuggestionWithSource {
   if (taskIntent.taskKind === "health_followup") {
-    const subjectMember = resolveHealthSubjectMember(text) || familyMembers.find((member) => member.id === senderMemberId) || familyMembers[0];
+    const subjectMember = resolveHealthSubjectMember(text, familyMembers) || familyMembers.find((member) => member.id === senderMemberId) || familyMembers[0];
 
     return {
       suggestedAssignees: [
@@ -238,7 +245,7 @@ function suggestLocalSuggestion(text: string, senderMemberId: string, mentionedM
   };
 }
 
-function suggestOpenVolunteerQuestion(_text: string, senderMemberId: string, taskIntent: TaskIntent): AssignmentSuggestionWithSource | null {
+function suggestOpenVolunteerQuestion(_text: string, familyMembers: FamilyMember[], senderMemberId: string, taskIntent: TaskIntent): AssignmentSuggestionWithSource | null {
   if (taskIntent.taskKind !== "open_volunteer") {
     return null;
   }
@@ -269,7 +276,7 @@ function suggestOpenVolunteerQuestion(_text: string, senderMemberId: string, tas
   };
 }
 
-function resolveHealthSubjectMember(text: string) {
+function resolveHealthSubjectMember(text: string, familyMembers: FamilyMember[]) {
   return resolveFamilyMemberMention(text, familyMembers, { includeSelfPronouns: true });
 }
 

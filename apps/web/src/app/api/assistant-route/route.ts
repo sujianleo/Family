@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { routeAssistantWithLangChain } from "@/lib/server/assistantChain";
 import type { AssistantConversationTurn, AssistantDialogueState } from "@/lib/assistantRouter";
-import { readFamilyMembersWithOverrides } from "@/lib/server/memberOverrides";
 import { FamilyRequestContextError, requireFamilyRequestContext } from "@/lib/server/familyRequestContext";
+import { readFamilyMembersForContext } from "@/lib/server/familyMembers";
 
 type AssistantRouteRequest = {
   actor_member_id?: unknown;
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ detail: "缺少输入文本。" }, { status: 400 });
     }
 
-    const members = await readFamilyMembersWithOverrides("data");
+    const members = await readFamilyMembersForContext(context);
     const requestedLocalMemberId = readString(body.actor_member_id);
     const actorMemberId =
       context.userId === "local-development" && requestedLocalMemberId ? requestedLocalMemberId : context.memberId;

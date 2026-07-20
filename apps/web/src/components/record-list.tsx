@@ -3383,6 +3383,7 @@ function CaptureComposer({ accountSettingsToken, activeTab, avatarProfile, avata
     const shouldOfferTaskSuggestion =
       shouldSuggestTaskFromText(initialFocusText, { contextTab: activeTab, mentionedMemberIds: submittedMentionIds, senderMemberId: currentMemberId }) ||
       shouldOfferComposerTaskCard(initialFocusText);
+    const directMentionedTask = submittedMentionIds.length > 0 && shouldOfferTaskSuggestion;
     setInputValue("");
     setSelectedMentionIds([]);
     setMentionPickerOpen(false);
@@ -3450,7 +3451,7 @@ function CaptureComposer({ accountSettingsToken, activeTab, avatarProfile, avata
 
     const assistantRoute: AssistantRoute = directLocalGroupAction
       ? localPreflightRoute
-      : directTimedTask
+      : directTimedTask || directMentionedTask
       ? {
           kind: "fallback",
           focusText: initialFocusText,
@@ -3458,7 +3459,7 @@ function CaptureComposer({ accountSettingsToken, activeTab, avatarProfile, avata
           suggestedAction: "task.create.input"
         }
       : await requestAssistantRoute(text);
-    if (directTimedTask) {
+    if (directTimedTask || directMentionedTask) {
       assistantDialogueStateRef.current = advanceAssistantDialogueState(assistantDialogueStateRef.current, assistantRoute);
     }
     const routedFocusText = assistantRoute.kind === "fallback" ? assistantRoute.focusText || initialFocusText : assistantRoute.parameters.text || initialFocusText;
