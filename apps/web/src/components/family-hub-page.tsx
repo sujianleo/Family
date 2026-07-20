@@ -2,6 +2,7 @@ import type { FamilyMember, FamilyRecord } from "@/lib/types";
 import { FamilyAccessGate } from "./family-access-gate";
 import { RecordList } from "./record-list";
 import { NotificationCenter } from "./notification-center";
+import { OnboardingGate } from "./onboarding-gate";
 import { PwaInstallPrompt } from "./pwa-install-prompt";
 
 export type NavItem = {
@@ -26,15 +27,17 @@ export function FamilyHubPage({
 }: FamilyHubPageProps) {
   return (
     <FamilyAccessGate initialSignedIn={initialSignedIn}>
-      <NotificationCenter members={familyMembers} />
-      <PwaInstallPrompt />
-      <main className="app-shell">
-        <section className="workspace">
-          <div className="columns">
-            <RecordList initialMemberId={initialMemberId} members={familyMembers} navItems={navItems} records={familyRecords} />
-          </div>
-        </section>
-      </main>
+      <OnboardingGate>
+        <NotificationCenter members={familyMembers} />
+        <PwaInstallPrompt />
+        <main className="app-shell">
+          <section className="workspace">
+            <div className="columns">
+              <RecordList initialMemberId={initialMemberId} members={familyMembers} navItems={navItems} records={familyRecords} />
+            </div>
+          </section>
+        </main>
+      </OnboardingGate>
     </FamilyAccessGate>
   );
 }

@@ -1,0 +1,175 @@
+.shell {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 14% 0%, rgba(18, 18, 18, 0.045), transparent 31%),
+    #f6f6f3;
+  color: #111;
+}
+
+.card {
+  display: grid;
+  width: min(100%, 430px);
+  min-height: min(760px, calc(100dvh - 48px));
+  border: 1px solid rgba(17, 17, 17, 0.1);
+  border-radius: 30px;
+  padding: 26px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 80px rgba(12, 12, 12, 0.09);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  align-self: start;
+  gap: 13px;
+}
+
+.logo {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.brand > div { display: grid; gap: 2px; }
+.brand span { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+.brand small { color: #777; font-size: 11px; }
+
+.welcome,
+.form {
+  display: grid;
+  align-content: center;
+  gap: 18px;
+  padding: 34px 0 24px;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #777;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+}
+
+.welcome h1,
+.stepHeader h1 {
+  margin: 0;
+  color: #0e0e0e;
+  font-size: clamp(28px, 8vw, 38px);
+  font-weight: 820;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+}
+
+.lead {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.features { display: grid; gap: 10px; margin: 6px 0 10px; }
+.features article {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 78px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  border-radius: 18px;
+  padding: 13px 14px;
+  background: #fafafa;
+}
+.features i {
+  display: grid;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 12px;
+  background: #111;
+  color: #fff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+.features span { display: grid; gap: 3px; }
+.features strong { font-size: 13px; }
+.features small { color: #777; font-size: 11px; line-height: 1.5; }
+
+.primary,
+.secondary {
+  min-height: 52px;
+  border: 0;
+  border-radius: 16px;
+  padding: 0 18px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 780;
+}
+.primary { background: #111; color: #fff; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14); }
+.primary:hover { background: #262626; }
+.primary:active { transform: translateY(1px); }
+.secondary { background: #efefed; color: #333; }
+
+.stepHeader { display: grid; gap: 9px; margin-bottom: 5px; }
+.progress { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 10px; }
+.progress i { height: 3px; border-radius: 999px; background: #e4e4e1; }
+.progress i.active { background: #111; }
+
+.field { display: grid; gap: 7px; }
+.field > span { font-size: 13px; font-weight: 760; }
+.field em { color: #888; font-size: 11px; font-style: normal; font-weight: 600; }
+.field input {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid #dededb;
+  border-radius: 15px;
+  padding: 0 14px;
+  background: #fff;
+  color: #111;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.field input:focus { border-color: #777; box-shadow: 0 0 0 4px rgba(17, 17, 17, 0.06); }
+.field input::placeholder { color: #aaa; }
+.field small { color: #888; font-size: 11px; line-height: 1.5; }
+.message { margin: -4px 0 0; color: #9a4438; font-size: 12px; }
+
+.summary {
+  display: grid;
+  gap: 5px;
+  border-radius: 18px;
+  padding: 15px 16px;
+  background: #f3f3f1;
+}
+.summary span { color: #777; font-size: 11px; }
+.summary strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.summary small { color: #777; font-size: 11px; }
+.actions { display: grid; grid-template-columns: minmax(96px, 0.36fr) minmax(0, 1fr); gap: 10px; margin-top: 4px; }
+
+.footer {
+  align-self: end;
+  padding-top: 18px;
+  border-top: 1px solid rgba(17, 17, 17, 0.07);
+  color: #999;
+  font-size: 10px;
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .shell { display: block; padding: 0; background: #fff; }
+  .card {
+    width: 100%;
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    padding: max(22px, env(safe-area-inset-top)) 22px max(18px, env(safe-area-inset-bottom));
+    box-shadow: none;
+  }
+  .welcome,
+  .form { padding-top: 32px; }
+}
