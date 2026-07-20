@@ -100,29 +100,23 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
 
         {step === "welcome" ? (
           <div className={styles.welcome}>
-            <p className={styles.eyebrow}>第一次见面</p>
-            <h1>先把你们的家庭空间安顿好</h1>
-            <p className={styles.lead}>用一分钟确认访问地址和 AI 服务。所有设置以后都能在 App 内修改。</p>
-            <div className={styles.features}>
-              <article><i aria-hidden="true">01</i><span><strong>家庭记录归位</strong><small>任务、群聊和资料各有自己的位置</small></span></article>
-              <article><i aria-hidden="true">02</i><span><strong>重要写入先确认</strong><small>AI 只帮你理解和整理，不替家人做决定</small></span></article>
-            </div>
-            <button className={styles.primary} onClick={() => setStep("network")} type="button">开始设置</button>
+            <p className={styles.eyebrow}>欢迎</p>
+            <h1>创建你的家庭空间</h1>
+            <p className={styles.lead}>确认访问方式，即可开始。</p>
+            <button className={styles.primary} onClick={() => setStep("network")} type="button">开始</button>
           </div>
         ) : null}
 
         {step === "network" ? (
           <form className={styles.form} onSubmit={continueFromNetwork}>
-            <StepHeader current={1} title="连接这个家庭" description="确认家人在外面和家里分别用什么地址访问。" />
+            <StepHeader current={1} title="设置访问地址" description="公网地址已填好，局域网地址可选。" />
             <label className={styles.field}>
-              <span>公网域名</span>
+              <span>公网地址</span>
               <input autoCapitalize="none" autoCorrect="off" onChange={(event) => setPublicDomain(event.target.value)} placeholder="family.example.com" spellCheck={false} value={publicDomain} />
-              <small>已自动填入当前地址，可直接继续。</small>
             </label>
             <label className={styles.field}>
               <span>局域网地址 <em>可选</em></span>
               <input autoCapitalize="none" autoCorrect="off" onChange={(event) => setLanAddress(event.target.value)} placeholder="192.168.1.100" spellCheck={false} value={lanAddress} />
-              <small>在家中 Wi-Fi 下可以使用更快的本地连接。</small>
             </label>
             {message ? <p className={styles.message} role="alert">{message}</p> : null}
             <div className={styles.actions}>
@@ -134,25 +128,23 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
 
         {step === "ai" ? (
           <div className={styles.form}>
-            <StepHeader current={2} title="连接 AI 助手" description="AI 是增强项，不配置也能使用任务、群聊和资料。" />
+            <StepHeader current={2} title="连接 AI" description="可选，稍后也能设置。" />
             <label className={styles.field}>
               <span>DeepSeek API Key <em>可选</em></span>
               <input autoComplete="off" onChange={(event) => setApiKey(event.target.value)} placeholder="sk-••••••••" type="password" value={apiKey} />
-              <small>只保存在当前浏览器设置中，稍后可在“设置 → AI”修改或测试。</small>
+              <small>仅保存在当前浏览器。</small>
             </label>
             <div className={styles.summary}>
-              <span>准备就绪</span>
+              <span>当前地址</span>
               <strong>{publicDomain}</strong>
-              <small>{lanAddress ? `本地地址 ${lanAddress}` : "暂不设置本地地址"}</small>
+              <small>{lanAddress ? `局域网 ${lanAddress}` : "未设置局域网地址"}</small>
             </div>
             <div className={styles.actions}>
               <button className={styles.secondary} onClick={() => setStep("network")} type="button">返回</button>
-              <button className={styles.primary} onClick={completeOnboarding} type="button">{apiKey.trim() ? "完成并进入" : "稍后配置 AI，先进入"}</button>
+              <button className={styles.primary} onClick={completeOnboarding} type="button">进入家庭空间</button>
             </div>
           </div>
         ) : null}
-
-        <footer className={styles.footer}>设置保存在当前设备中 · 可随时在 App 内修改</footer>
       </section>
     </main>
   );
@@ -164,7 +156,7 @@ function StepHeader({ current, description, title }: { current: 1 | 2; descripti
       <div aria-label={`设置进度 ${current}/2`} className={styles.progress}>
         {[1, 2].map((step) => <i aria-current={current === step ? "step" : undefined} className={current >= step ? styles.active : ""} key={step} />)}
       </div>
-      <p className={styles.eyebrow}>第 {current} 步，共 2 步</p>
+      <p className={styles.eyebrow}>{current} / 2</p>
       <h1>{title}</h1>
       <p className={styles.lead}>{description}</p>
     </header>
