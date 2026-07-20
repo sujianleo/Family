@@ -27,12 +27,9 @@
 
 ## 一件家事，怎样被好好接住？
 
-<picture>
-  <source media="(prefers-color-scheme: dark) and (max-width: 640px)" srcset="docs/assets/family-care-loop-mobile-dark.drawio.png" />
-  <source media="(max-width: 640px)" srcset="docs/assets/family-care-loop-mobile.drawio.png" />
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/family-care-loop-dark.drawio.png" />
-  <img src="docs/assets/family-care-loop.drawio.png" alt="家庭记录、整理、确认与跟进闭环" width="100%" />
-</picture>
+<p align="center">
+  <img src="docs/assets/family-care-loop-mobile-dark.drawio.png" alt="家庭记录、整理、确认与跟进闭环" width="520" />
+</p>
 
 ## Quick Start
 
