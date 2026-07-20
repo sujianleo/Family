@@ -126,6 +126,20 @@ export async function POST(request: Request) {
     const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
       auth: { persistSession: false }
     });
+    const recordId = normalizeUuid(body.id);
+    const { data: existingRecord, error: existingRecordError } = recordId
+      ? await supabase
+          .from("family_records")
+          .select("family_id,member_id,created_by_member_id")
+          .eq("id", recordId)
+          .maybeSingle()
+      : { data: null, error: null };
+    if (existingRecordError) {
+      return NextResponse.json({ detail: existingRecordError.message }, { status: 500 });
+    }
+    if (existingRecord && existingRecord.family_id !== familyId) {
+      return NextResponse.json({ detail: "记录不存在。" }, { status: 404 });
+    }
     if (!spaceId) {
       const { data: coreSpace, error: coreSpaceError } = await supabase
         .from("family_spaces")
@@ -160,12 +174,12 @@ export async function POST(request: Request) {
     }
     const { data, error } = await supabase
       .from("family_records")
-      .insert({
-        ...(normalizeUuid(body.id) ? { id: normalizeUuid(body.id) } : {}),
+      .upsert({
+        ...(recordId ? { id: recordId } : {}),
         family_id: familyId,
-        member_id: memberId,
+        member_id: existingRecord?.member_id || memberId,
         space_id: spaceId,
-        created_by_member_id: createdByMemberId,
+        created_by_member_id: existingRecord?.created_by_member_id || createdByMemberId,
         assignee_member_ids: requestedAssigneeMemberIds,
         audience,
         assignment_status: assignmentStatus,
@@ -176,7 +190,7 @@ export async function POST(request: Request) {
         status,
         tags: Array.isArray(body.tags) ? body.tags.filter((tag): tag is string => typeof tag === "string") : [],
         metadata: toJson(buildRecordMetadata(body))
-      })
+      }, { onConflict: "id" })
       .select("id")
       .single();
 
