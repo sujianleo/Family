@@ -733,7 +733,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
     setSelectedTaskId(deepLinkedRecord?.kind === "task" ? deepLinkedRecord.id : null);
     setSelectedResourceId(deepLinkedRecord && ["note", "link", "media"].includes(deepLinkedRecord.kind) ? deepLinkedRecord.id : null);
     setClientStorageHydrated(true);
-  }, [demoDataEnabled, demoRecordIdSet, perspectiveMembers, records, sessionMemberId]);
+  }, [demoDataEnabled, demoRecordIdSet, members, records, sessionMemberId]);
 
   useEffect(() => {
     if (!clientStorageHydrated || deepLinkHandledRef.current) return;
