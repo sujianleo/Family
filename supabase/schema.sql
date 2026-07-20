@@ -1252,4 +1252,4 @@ create policy "inquiry participants can read knowledge inquiries"
 
 create trigger knowledge_inquiries_set_updated_at
   before update on public.knowledge_inquiries
-  for each row execute function public.set_updated_at();
+  for each row execute function public.set_family_records_updated_at();
