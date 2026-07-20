@@ -1906,19 +1906,25 @@ async function answerChatWithLocalContext(
   const contextUsage = trustedAssistantContextUsage(trustedContext);
   if (modelAnswer.unavailable || !modelAnswer.text) {
     const flashFallback = await answerConversationFallbackWithFlash(text, dataDir);
-    return { contextUsage, text: flashFallback || "AI 回复暂时不可用，请再发一次。" };
+    return { contextUsage, text: flashFallback || aiUnavailableReply() };
   }
   if (/(想哭|难受|委屈|崩溃|低落|焦虑|害怕|孤单|孤独)/.test(text) && !/(难受|委屈|撑着|陪你|在这|听起来|我在)/.test(modelAnswer.text || "")) {
     return { contextUsage, text: deterministicAnswer };
   }
   if (isContextFollowUpText(text) && !isModelReplySuitableForFollowUp(text, modelAnswer.text || "", conversationContext)) {
     const flashFallback = await answerConversationFallbackWithFlash(text, dataDir);
-    return { contextUsage, text: flashFallback || "AI 回复暂时不可用，请再发一次。" };
+    return { contextUsage, text: flashFallback || aiUnavailableReply() };
   }
   return {
     contextUsage,
     text: modelAnswer.text
   };
+}
+
+function aiUnavailableReply() {
+  return process.env.DEEPSEEK_API_KEY
+    ? "AI 回复暂时不可用，请再发一次。"
+    : "请先在设置中接入 AI 服务，开启更智慧的家庭生活。";
 }
 
 async function answerConversationFallbackWithFlash(text: string, dataDir: string) {
