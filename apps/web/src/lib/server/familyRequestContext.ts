@@ -31,7 +31,7 @@ export async function requireFamilyRequestContext(request: Request): Promise<Fam
     }
     throw new FamilyRequestContextError("请先登录家庭账号。", 401);
   }
-  if (!isFamilyAuthRequired() || isTrustedLocalRequest(request)) {
+  if (!isFamilyAuthRequired()) {
     return {
       familyId: process.env.SUPABASE_DEFAULT_FAMILY_ID || "local-family",
       memberId: process.env.SUPABASE_DEFAULT_MEMBER_ID || "me",
@@ -87,20 +87,6 @@ export async function requireFamilyRequestContext(request: Request): Promise<Fam
 function readFamilyContextId(value: string | null | undefined) {
   const trimmed = value?.trim() || "";
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed) ? trimmed : "";
-}
-
-function isTrustedLocalRequest(request: Request) {
-  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
-  const hostHeader = forwardedHost || request.headers.get("host") || new URL(request.url).host;
-  const hostname = hostHeader.replace(/^\[/, "").replace(/\](:\d+)?$/, "").replace(/:\d+$/, "").toLowerCase();
-  if (hostname === "localhost" || hostname === "::1" || hostname === "[::1]" || hostname.startsWith("127.")) {
-    return true;
-  }
-  if (/^10\./.test(hostname) || /^192\.168\./.test(hostname)) {
-    return true;
-  }
-  const private172 = hostname.match(/^172\.(\d{1,3})\./);
-  return private172 ? Number(private172[1]) >= 16 && Number(private172[1]) <= 31 : false;
 }
 
 export function isFamilyAuthRequired() {
