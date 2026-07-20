@@ -2,6 +2,8 @@ services:
   family-app:
     build:
       context: ./apps/web
+      args:
+        NEXT_PUBLIC_FAMILY_APP_LAN_ADDRESS: "${FAMILY_APP_LAN_ADDRESS:-}"
     ports:
       - "3000:3000"
     environment:

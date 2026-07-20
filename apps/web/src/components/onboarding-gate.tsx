@@ -65,9 +65,11 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
         setReady(true);
         return;
       }
-      setPublicDomain(window.location.host || "localhost:3000");
+      setPublicDomain(storedSettings.serverUrl?.trim() || "");
+      setLanAddress(resolveInitialLanAddress(storedSettings.lanIp));
     } catch {
-      setPublicDomain(window.location.host || "localhost:3000");
+      setPublicDomain("");
+      setLanAddress(resolveInitialLanAddress());
     }
   }, []);
 
@@ -77,7 +79,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
     event.preventDefault();
     const domain = normalizePublicDomain(publicDomain);
     if (!domain) {
-      setMessage("请填写公网域名或当前访问地址。");
+      setMessage("请填写公网地址。");
       return;
     }
     setPublicDomain(domain);
@@ -159,13 +161,13 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
 
         {step === "network" ? (
           <form className={styles.form} onSubmit={continueFromNetwork}>
-            <StepHeader current={1} title="设置访问地址" description="公网地址已填好，局域网地址可选。" />
+            <StepHeader current={1} title="设置访问地址" description="填写公网地址，确认局域网地址。" />
             <label className={styles.field}>
               <span>公网地址</span>
               <input autoCapitalize="none" autoCorrect="off" onChange={(event) => setPublicDomain(event.target.value)} placeholder="family.example.com" spellCheck={false} value={publicDomain} />
             </label>
             <label className={styles.field}>
-              <span>局域网地址 <em>可选</em></span>
+              <span>局域网地址 <em>可修改</em></span>
               <input autoCapitalize="none" autoCorrect="off" onChange={(event) => setLanAddress(event.target.value)} placeholder="192.168.1.100" spellCheck={false} value={lanAddress} />
             </label>
             {message ? <p className={styles.message} role="alert">{message}</p> : null}
@@ -240,6 +242,23 @@ function applyThemeFamily(themeFamily: ThemeFamily) {
 
 function normalizeLanAddress(value: string) {
   return value.trim().replace(/^https?:\/\//i, "").split("/")[0] || "";
+}
+
+function resolveInitialLanAddress(storedLanAddress = "") {
+  const stored = normalizeLanAddress(storedLanAddress);
+  if (stored) return stored;
+  const built = normalizeLanAddress(process.env.NEXT_PUBLIC_FAMILY_APP_LAN_ADDRESS || "");
+  if (built) return built;
+  return isPrivateIpv4Address(window.location.hostname) ? window.location.hostname : "";
+}
+
+function isPrivateIpv4Address(hostname: string) {
+  const segments = hostname.split(".").map(Number);
+  if (segments.length !== 4 || segments.some((segment) => !Number.isInteger(segment) || segment < 0 || segment > 255)) return false;
+  return segments[0] === 10
+    || segments[0] === 127
+    || (segments[0] === 172 && segments[1] >= 16 && segments[1] <= 31)
+    || (segments[0] === 192 && segments[1] === 168);
 }
 
 function parsePublicTarget(value: string) {
