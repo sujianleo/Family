@@ -5,13 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "family": "rm -rf .deploy/family-cli-runtime && tsc -p tsconfig.cli.json && node .deploy/family-cli-runtime/scripts/family-cli.js",
-    "profiles:rebuild": "rm -rf .deploy/family-cli-runtime && tsc -p tsconfig.cli.json && node .deploy/family-cli-runtime/scripts/profile-rebuild.js",
     "start": "next start",
-    "summarize:meta": "node scripts/summarize-meta.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "next lint",
-    "postbuild": "node scripts/prepare-standalone.mjs"
+    "lint": "next lint"
   },
   "dependencies": {
     "@langchain/community": "^1.1.29",

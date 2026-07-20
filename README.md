@@ -265,7 +265,6 @@ HOSTNAME=0.0.0.0 PORT=3000 npm run start
 │   ├── src/app/          # 页面、Route Handlers 与 PWA
 │   ├── src/components/   # 家庭任务、群聊、资料与设置 UI
 │   ├── src/lib/          # 业务核心、AI 路由、动作与服务端逻辑
-│   ├── scripts/          # 生产构建、CLI 与维护脚本
 │   └── public/           # Logo、图标、表情与静态资源
 ├── supabase/             # Schema、SQL、定时任务与 Edge Functions
 ├── docs/                 # 能力矩阵与数据流说明
