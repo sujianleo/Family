@@ -21,6 +21,8 @@
 
 运行产生的 Supabase 文件位于 `.runtime/local-supabase`，应用连接配置写入被 Git 忽略的 `.env`。密钥不会提交到仓库。
 
+安装者不需要手工填写 `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY` 或 `SUPABASE_SERVICE_ROLE_KEY`。脚本会为这台部署生成并写入本地配置；浏览器只接收匿名 Key，服务角色 Key 只留在服务端。
+
 ## 局域网访问
 
 假设 NAS 地址是 `192.168.1.20`：
@@ -55,7 +57,9 @@ FAMILY_APP_PORT=3100 SUPABASE_API_PORT=8100 FAMILY_APP_HOST=192.168.1.20 ./scrip
 
 ## 局域网与公网自动切换
 
-从 `localhost`、私有 IP 或 `.local` 地址打开时，浏览器自动使用当前主机的 Supabase 端口；从普通公网域名打开时，使用 `NEXT_PUBLIC_SUPABASE_PUBLIC_URL`。因此页面中不需要手动切换连接。
+从 `localhost`、私有 IP 或 `.local` 地址打开时，浏览器自动使用当前主机的 Supabase 端口；从普通公网域名打开时，使用 `NEXT_PUBLIC_SUPABASE_PUBLIC_URL`。公网地址可以不填，局域网地址由安装时识别的主机地址生成，并可在 **设置 → 网络** 修改。
+
+页面的“自动”模式会分别检测公网与本地地址：只有本地可用时选择本地，两者都可用时选择延迟更低的一条。也可以临时固定为“公网”或“本地”。
 
 ![局域网与公网自动切换拓扑](assets/local-supabase-mobile.png)
 
@@ -71,6 +75,18 @@ FAMILY_APP_HOST=192.168.1.20 \
 ```
 
 公网反向代理应分别转发到饭米粒端口和 Supabase API 端口。只配置局域网时，应用不会自行把数据发送到托管 Supabase。
+
+## AI（可选）
+
+不配置 AI 时，登录、邀请、群聊、任务、完成反馈和资料仍可使用，页面会提示在设置中接入 API。测试环境或家庭部署可把 `DEEPSEEK_API_KEY` 放在服务端 `.env`；也可以在 **设置 → AI** 选择服务商并测试连接。
+
+DeepSeek 的“测试 API”会执行真实的结构化请求。页面没有填写 Key 时，测试会使用服务端配置；两处都没有 Key 时会返回失败提示。任何服务端 Key 都不要写入 `NEXT_PUBLIC_*` 变量。
+
+## 已验证的家庭协作流程
+
+下面的纵向图适合在手机上阅读。Mermaid 源文件见 [`family-collaboration-mobile.mmd`](family-collaboration-mobile.mmd)。
+
+![家庭成员邀请与协作流程](assets/family-collaboration-mobile.png)
 
 ## 备份
 

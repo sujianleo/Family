@@ -1,0 +1,26 @@
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 26, "rankSpacing": 32}}}%%
+flowchart TB
+  FIRST["第一位成员<br/>创建家庭管理员"]
+  INVITE["管理员邀请家人"]
+  REGISTER["家人注册自己的账号"]
+  REVIEW["管理员确认加入"]
+  CORE["进入同一个家庭核心空间"]
+  CHAT["家庭群聊<br/>每人使用自己的身份"]
+  TASK["指派任务<br/>接收人完成并反馈"]
+  RESOURCE["共享资料<br/>家庭成员同步查看"]
+  CHECK["管理员检查成员、网络<br/>与 AI 连接"]
+
+  FIRST --> INVITE --> REGISTER --> REVIEW --> CORE
+  CORE --> CHAT
+  CORE --> TASK
+  CORE --> RESOURCE
+  CHAT --> CHECK
+  TASK --> CHECK
+  RESOURCE --> CHECK
+
+  classDef account fill:#F2F7F4,stroke:#7FA395,color:#20302A,stroke-width:2px;
+  classDef approval fill:#FFF7EC,stroke:#C49A64,color:#4A3823,stroke-width:2px;
+  classDef collaboration fill:#F5F2FF,stroke:#9584C5,color:#30264B,stroke-width:2px;
+  class FIRST,INVITE,REGISTER account;
+  class REVIEW,CORE,CHECK approval;
+  class CHAT,TASK,RESOURCE collaboration;
