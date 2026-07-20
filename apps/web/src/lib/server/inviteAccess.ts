@@ -1,5 +1,6 @@
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { readSupabaseAnonKey, readSupabaseServerUrl } from "./supabaseConfig";
 import { createRawEvent } from "./eventStore";
 import { createServiceSupabaseClient } from "./supabaseServer";
 import { isLocalAuthConfigured, localAuthContext, readLocalSession } from "./localAuth";
@@ -18,8 +19,8 @@ export class InviteAccessError extends Error {
 export async function requireInviteUser(request: Request) {
   const localSession = isLocalAuthConfigured() ? readLocalSession(request) : null;
   if (localSession) return { ...localAuthContext(localSession), phone: "" };
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = readSupabaseServerUrl();
+  const anonKey = readSupabaseAnonKey();
   if (!url || !anonKey) throw new InviteAccessError("账号服务尚未配置。", 503);
   const token = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   if (!token) throw new InviteAccessError("请先登录或创建账号，再加入。", 401);

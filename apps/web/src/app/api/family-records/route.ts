@@ -4,11 +4,12 @@ import { NextResponse } from "next/server";
 import { familyMembers } from "@/lib/mockData";
 import { FamilyRequestContextError, requireFamilyRequestContext } from "@/lib/server/familyRequestContext";
 import { createRecordNotifications } from "@/lib/server/notificationStore";
+import { readSupabaseServerUrl } from "@/lib/server/supabaseConfig";
 import type { AssignmentStatus, Database, FamilyRecord, FamilyRecordAudience, FamilyRecordKind, FamilyRecordStatus, Json } from "@/lib/types";
 
 export const runtime = "nodejs";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl = readSupabaseServerUrl();
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const fallbackDbDir = "data";
 const fallbackRecordsPath = "data/family-records.jsonl";
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
   } catch (error) {
     return requestContextErrorResponse(error);
   }
-  if (!supabaseUrl || !supabaseServiceRoleKey || !process.env.SUPABASE_DEFAULT_FAMILY_ID) {
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
     if (!canUseFileFallback()) {
       return NextResponse.json({ detail: "生产环境必须配置 Supabase 存储。" }, { status: 503 });
     }
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as Partial<RecordPayload>;
     const familyId = context.familyId;
     const memberId = context.memberId || null;
-    const spaceId = normalizeUuid(readString(body.space_id) || process.env.SUPABASE_DEFAULT_CORE_SPACE_ID) || null;
+    let spaceId = normalizeUuid(readString(body.space_id) || process.env.SUPABASE_DEFAULT_CORE_SPACE_ID) || null;
     const createdByMemberId = memberId;
     const kind = recordKinds.has(body.kind as FamilyRecordKind) ? (body.kind as FamilyRecordKind) : "note";
     const status = recordStatuses.has(body.status as FamilyRecordStatus) ? (body.status as FamilyRecordStatus) : "saved";
@@ -125,6 +126,20 @@ export async function POST(request: Request) {
     const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
       auth: { persistSession: false }
     });
+    if (!spaceId) {
+      const { data: coreSpace, error: coreSpaceError } = await supabase
+        .from("family_spaces")
+        .select("id")
+        .eq("family_id", familyId)
+        .eq("space_type", "core")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (coreSpaceError || !coreSpace?.id) {
+        return NextResponse.json({ detail: "家庭核心空间尚未创建。" }, { status: 503 });
+      }
+      spaceId = coreSpace.id;
+    }
     if (requestedAssigneeMemberIds.length) {
       const { data: assignees, error: assigneeError } = await supabase
         .from("family_members")

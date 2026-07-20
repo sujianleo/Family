@@ -54,6 +54,71 @@ create table public.space_members (
   unique (space_id, member_id)
 );
 
+-- A self-hosted installation is claimed exactly once. The first account is
+-- created through the server-only bootstrap endpoint; anonymous clients never
+-- receive permission to call this function or inspect this row.
+create table if not exists public.app_installation (
+  id smallint primary key default 1 check (id = 1),
+  family_id uuid not null unique references public.families(id) on delete restrict,
+  owner_member_id uuid not null unique references public.family_members(id) on delete restrict,
+  core_space_id uuid not null unique references public.family_spaces(id) on delete restrict,
+  created_at timestamptz not null default now()
+);
+
+alter table public.app_installation enable row level security;
+revoke all on table public.app_installation from anon, authenticated;
+
+create or replace function public.bootstrap_family_admin(
+  p_user_id uuid,
+  p_display_name text,
+  p_family_name text
+)
+returns table(family_id uuid, member_id uuid, core_space_id uuid)
+language plpgsql
+security definer
+set search_path = public, auth, extensions
+as $$
+declare
+  v_family_id uuid;
+  v_member_id uuid;
+  v_core_space_id uuid;
+begin
+  perform pg_advisory_xact_lock(hashtext('family-app:first-admin'));
+  if exists (select 1 from public.app_installation where id = 1) then
+    raise exception 'family app has already been initialized';
+  end if;
+  if not exists (select 1 from auth.users where id = p_user_id) then
+    raise exception 'auth user does not exist';
+  end if;
+
+  insert into public.users(id, display_name)
+  values (p_user_id, trim(p_display_name));
+
+  insert into public.families(name, created_by)
+  values (trim(p_family_name), p_user_id)
+  returning id into v_family_id;
+
+  insert into public.family_members(family_id, user_id, display_name, role, relationship_role, avatar_seed)
+  values (v_family_id, p_user_id, trim(p_display_name), 'owner', 'relative', p_user_id::text)
+  returning id into v_member_id;
+
+  insert into public.family_spaces(family_id, name, space_type, created_by_member_id)
+  values (v_family_id, '家', 'core', v_member_id)
+  returning id into v_core_space_id;
+
+  insert into public.space_members(space_id, member_id, access_role)
+  values (v_core_space_id, v_member_id, 'owner');
+
+  insert into public.app_installation(id, family_id, owner_member_id, core_space_id)
+  values (1, v_family_id, v_member_id, v_core_space_id);
+
+  return query select v_family_id, v_member_id, v_core_space_id;
+end;
+$$;
+
+revoke all on function public.bootstrap_family_admin(uuid, text, text) from public, anon, authenticated;
+grant execute on function public.bootstrap_family_admin(uuid, text, text) to service_role;
+
 create table public.family_records (
   id uuid primary key default gen_random_uuid(),
   family_id uuid not null references public.families(id) on delete cascade,

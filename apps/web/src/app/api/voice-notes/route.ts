@@ -3,13 +3,14 @@ import { NextResponse } from "next/server";
 import type { Database } from "@/lib/types";
 import { FamilyRequestContextError, requireFamilyRequestContext } from "@/lib/server/familyRequestContext";
 import { transcribeAudioLocally } from "@/lib/server/localSpeechTranscription";
+import { readSupabaseServerUrl } from "@/lib/server/supabaseConfig";
 
 export const runtime = "nodejs";
 const maxVoiceBytes = 25 * 1024 * 1024;
 
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const transcribeModel = process.env.OPENAI_TRANSCRIBE_MODEL || "gpt-4o-mini-transcribe";
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl = readSupabaseServerUrl();
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const voiceBucket = process.env.SUPABASE_VOICE_BUCKET || "voice-notes";
 
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
 
     if (!transcribeOnly && (!supabaseUrl || !supabaseServiceRoleKey || !familyId)) {
       return NextResponse.json(
-        { detail: "缺少 Supabase 写入配置：NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_DEFAULT_FAMILY_ID。" },
+        { detail: "缺少 Supabase 写入配置：SUPABASE_INTERNAL_URL / SUPABASE_SERVICE_ROLE_KEY。" },
         { status: 500 }
       );
     }

@@ -2,6 +2,7 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { normalizePhoneNumber } from "@/lib/phoneAuth";
+import { readSupabaseServerUrl } from "@/lib/server/supabaseConfig";
 import type { Database, FamilyRecord, Json } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ detail: "申请次数过多，请稍后再试。" }, { status: 429 });
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = readSupabaseServerUrl();
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const usesSupabase = Boolean(supabaseUrl && serviceRoleKey);
   const configuredFamilyId = process.env.FAMILY_APP_LOCAL_AUTH_FAMILY_ID || process.env.SUPABASE_DEFAULT_FAMILY_ID || "";

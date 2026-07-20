@@ -47,6 +47,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
     }).select("id").single();
     if (memberError || !newMember?.id) return NextResponse.json({ detail: "创建家庭成员失败。" }, { status: 500 });
 
+    const { data: coreSpace } = await service.from("family_spaces").select("id").eq("family_id", context.familyId).eq("space_type", "core").order("created_at", { ascending: true }).limit(1).maybeSingle();
+    if (coreSpace?.id) {
+      const { error: spaceMemberError } = await service.from("space_members").insert({ access_role: "member", member_id: newMember.id, space_id: coreSpace.id });
+      if (spaceMemberError) {
+        await service.from("family_members").delete().eq("id", newMember.id);
+        return NextResponse.json({ detail: "加入家庭空间失败，请重试。" }, { status: 500 });
+      }
+    }
+
     const inviterMemberId = invite.created_by_member_id;
     if (inviterMemberId) {
       await service.from("family_relationships").upsert([

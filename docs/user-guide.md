@@ -20,6 +20,14 @@ docker compose up --build -d
 
 ### 1.2 正式家庭部署
 
+NAS 本地 Supabase 可以通过一条命令完成密钥、数据库和应用初始化：
+
+```bash
+./scripts/setup-local-supabase.sh
+```
+
+同一局域网的设备打开脚本显示的地址。第一位使用者在页面创建家庭管理员；完整说明见[本地 Supabase 部署](self-hosted-supabase.md)。
+
 如果要让家人通过公网访问，至少需要：
 
 - 最终 HTTPS 域名；

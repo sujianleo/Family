@@ -30,6 +30,33 @@
   width: 112px;
 }
 
+.loading {
+  min-height: 260px;
+  place-content: center;
+}
+
+.intro {
+  display: grid;
+  gap: 5px;
+  text-align: center;
+}
+
+.intro h1,
+.intro p {
+  margin: 0;
+}
+
+.intro h1 {
+  color: #202623;
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+}
+
+.intro p {
+  color: rgba(42, 50, 46, 0.56);
+  font-size: 0.82rem;
+}
+
 .field {
   display: grid;
 }

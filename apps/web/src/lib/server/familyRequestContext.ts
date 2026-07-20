@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { createServiceSupabaseClient } from "./supabaseServer";
+import { readSupabaseAnonKey, readSupabaseServerUrl } from "./supabaseConfig";
 import { isLocalAuthConfigured, localAuthContext, readLocalSession } from "./localAuth";
 import { readRemovedMemberIds } from "./memberOverrides";
 
@@ -38,8 +39,8 @@ export async function requireFamilyRequestContext(request: Request): Promise<Fam
     };
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = readSupabaseServerUrl();
+  const anonKey = readSupabaseAnonKey();
   const service = createServiceSupabaseClient();
   if (!url || !anonKey || !service) {
     throw new FamilyRequestContextError("家庭访问鉴权尚未配置。", 503);
