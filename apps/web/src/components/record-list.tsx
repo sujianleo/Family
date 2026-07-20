@@ -1014,7 +1014,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
     }
     const inviteLink = isFamilyGroup ? undefined : createGuestChatLink();
     const newRecord: FamilyRecord = {
-      id: `chat-${Date.now()}`,
+      id: crypto.randomUUID(),
       kind: "task",
       title,
       summary: sourceText.trim() || (isFamilyGroup ? `家庭群聊：${title}` : "长按复制链接，发给别人后进入独立聊天空间"),
