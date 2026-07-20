@@ -940,7 +940,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
 
   function handleQuickCapture(text: string, suggestion: AssignmentSuggestion) {
     const isPersonalTodo = suggestion.personalTodo ?? isPersonalSuggestion(suggestion);
-    const newRecord = createQuickRecord(text, suggestion, { personalTodo: isPersonalTodo });
+    const newRecord = createQuickRecord(text, suggestion, { ownerName: currentMemberName, personalTodo: isPersonalTodo });
     if (newRecord.dueAt) requestSystemNotificationPermission();
     setLocalRecords((currentRecords) => [newRecord, ...currentRecords]);
     void enqueueFamilyRecord(newRecord).catch(() => undefined);
@@ -8285,7 +8285,7 @@ function mergeRecordDisplayDefaults(storedRecords: FamilyRecord[] | null, defaul
   });
 }
 
-function createQuickRecord(text: string, suggestion: AssignmentSuggestion, options: { personalTodo?: boolean } = {}): FamilyRecord {
+function createQuickRecord(text: string, suggestion: AssignmentSuggestion, options: { ownerName?: string; personalTodo?: boolean } = {}): FamilyRecord {
   const taskActionType = suggestion.taskActionType || inferTaskActionType(text);
   const assigneeIds = suggestion.suggestedAssignees.map((assignee) => assignee.id);
   const reminder = parseTaskReminder(suggestion.sourceText || text);
@@ -8304,7 +8304,7 @@ function createQuickRecord(text: string, suggestion: AssignmentSuggestion, optio
     kind: "task",
     title,
     summary: suggestion.reason,
-    ownerName: defaultCurrentMemberName,
+    ownerName: options.ownerName || defaultCurrentMemberName,
     createdByMemberId: currentMemberId,
     displayTime,
     dueAt: suggestion.dueAt || reminder.dueAt,
