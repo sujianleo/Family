@@ -193,7 +193,7 @@
   padding: 18px;
   background: #fafaf8;
 }
-.installGuide strong { font-size: 13px; }
+.installGuide strong { color: #111 !important; font-size: 13px; }
 .installGuide p { margin: 0; color: #666; font-size: 14px; line-height: 1.7; }
 .actions { display: grid; grid-template-columns: minmax(96px, 0.36fr) minmax(0, 1fr); gap: 10px; margin-top: 4px; }
 
