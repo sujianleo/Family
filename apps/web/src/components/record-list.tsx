@@ -7480,10 +7480,13 @@ function ChatFullscreen({
     return () => window.clearTimeout(timer);
   }, [copied]);
 
-  const renderedMessages = useMemo(
-    () => messages.length > maxRenderedChatMessages ? messages.slice(-maxRenderedChatMessages) : messages,
-    [messages]
-  );
+  const renderedMessages = useMemo(() => {
+    const visibleMessages = messages.length > maxRenderedChatMessages ? messages.slice(-maxRenderedChatMessages) : messages;
+    return visibleMessages.map((message) => {
+      const mine = message.senderMemberId ? message.senderMemberId === currentMemberId : Boolean(message.mine);
+      return mine === Boolean(message.mine) ? message : { ...message, mine };
+    });
+  }, [messages, currentMemberId]);
   const sourceMessageGroups = useMemo(() => groupChatMessages(renderedMessages), [renderedMessages]);
   const displayedMessageGroups = useMemo(
     () => splitChatMessageGroups(sourceMessageGroups, new Set(chatGroupContinuationIds)),
