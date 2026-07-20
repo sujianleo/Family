@@ -127,9 +127,6 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
         {step === "welcome" ? (
           <div className={styles.welcome}>
             <Brand className={styles.welcomeBrand} />
-            <p className={styles.eyebrow}>欢迎</p>
-            <h1>创建你的家庭空间</h1>
-            <p className={styles.lead}>确认访问方式，即可开始。</p>
             <div aria-label="选择配色" className={styles.themeChoice} role="group">
               <button
                 aria-pressed={themeFamily === "mono"}
