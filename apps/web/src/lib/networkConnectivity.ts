@@ -10,12 +10,15 @@ export function buildConnectivityTarget(serverUrl: string, serverPort: string) {
   return target;
 }
 
-export function buildLanConnectivityTarget(lanIp: string) {
+const defaultLanPort = process.env.NEXT_PUBLIC_FAMILY_LAN_PORT?.trim() || "3000";
+
+export function buildLanConnectivityTarget(lanIp: string, port = defaultLanPort) {
   const value = lanIp.trim();
   const host = value.replace(/^https?:\/\//i, "").split("/")[0]?.split(":")[0] || "";
   if (!isCompleteLanAddress(host)) throw new Error("本地地址不完整。");
   const target = new URL(/^https?:\/\//i.test(value) ? value : `http://${value}`);
 
+  if (!target.port && port.trim()) target.port = port.trim();
   target.pathname = "/api/auth/session";
   target.search = "";
   target.hash = "";
