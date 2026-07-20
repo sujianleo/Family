@@ -464,8 +464,8 @@ export function SettingsDrawer({ currentMemberId, isFamilyAdmin, members, open, 
   const [themeMode, setThemeMode] = useState<ThemeMode>("auto");
   const [networkMode, setNetworkMode] = useState<NetworkMode>("auto");
   const [activeNetwork, setActiveNetwork] = useState<ActiveNetwork>(null);
-  const [serverUrl, setServerUrl] = useState("localhost");
-  const [serverPort, setServerPort] = useState("3000");
+  const [serverUrl, setServerUrl] = useState("");
+  const [serverPort, setServerPort] = useState("");
   const [lanIp, setLanIp] = useState("192.168.");
   const [internetConnectivity, setInternetConnectivity] = useState<ConnectivityTest>({ status: "idle" });
   const [lanConnectivity, setLanConnectivity] = useState<ConnectivityTest>({ status: "idle" });
@@ -537,8 +537,8 @@ export function SettingsDrawer({ currentMemberId, isFamilyAdmin, members, open, 
       }
       if (stored.networkMode) setNetworkMode(stored.networkMode);
       if (stored.activeNetwork === "internet" || stored.activeNetwork === "local") setActiveNetwork(stored.activeNetwork);
-      if (stored.serverUrl) setServerUrl(stored.serverUrl);
-      if (stored.serverPort) setServerPort(stored.serverPort);
+      if (typeof stored.serverUrl === "string") setServerUrl(stored.serverUrl);
+      if (typeof stored.serverPort === "string") setServerPort(stored.serverPort);
       if (stored.lanIp) setLanIp(stored.lanIp);
       setProviders(normalizeStoredProviders(stored.providers));
       if (typeof stored.notifications === "boolean") setNotifications(stored.notifications);
