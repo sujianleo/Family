@@ -773,26 +773,37 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
     }
 
     let active = true;
-    void familyFetch("/api/family-records", { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload) => {
-        if (!active) {
-          return;
-        }
-
+    let polling = false;
+    const syncFamilyRecords = async () => {
+      if (!active || polling || document.visibilityState === "hidden") return;
+      polling = true;
+      try {
+        const response = await familyFetch("/api/family-records", { cache: "no-store" });
+        const payload = response.ok ? await response.json() : null;
+        if (!active) return;
         const serverRecords = readFamilyRecordsResponse(payload).filter(
           (record) => demoDataEnabled || !demoRecordIdSet.has(record.id)
         );
-        if (!serverRecords.length) {
-          return;
+        if (serverRecords.length) {
+          setLocalRecords((currentRecords) => mergeServerRecords(serverRecords, currentRecords));
         }
-
-        setLocalRecords((currentRecords) => mergeServerRecords(serverRecords, currentRecords));
-      })
-      .catch(() => undefined);
+      } catch {
+        // A later poll retries without disturbing the local interaction state.
+      } finally {
+        polling = false;
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void syncFamilyRecords();
+    };
+    void syncFamilyRecords();
+    const timer = window.setInterval(() => void syncFamilyRecords(), 3_000);
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       active = false;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [clientStorageHydrated, demoDataEnabled, demoRecordIdSet, sessionMemberId]);
 
