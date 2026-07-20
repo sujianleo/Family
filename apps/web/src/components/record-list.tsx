@@ -693,7 +693,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
     const memberRecordsKey = memberScopedStorageKey(recordListStorageKeys.localRecords, sessionMemberId);
     const memberAvatarSeedKey = memberScopedStorageKey(recordListStorageKeys.avatarSeed, sessionMemberId);
     const memberAvatarProfileKey = memberScopedStorageKey(recordListStorageKeys.avatarProfile, sessionMemberId);
-    const sessionMember = members.find((member) => member.id === sessionMemberId);
+    const sessionMember = perspectiveMembers.find((member) => member.id === sessionMemberId);
     const scopedAvatarSeed = loadStoredString(memberAvatarSeedKey) || "";
     const legacyAvatarSeed = sessionMemberId === "me" ? loadStoredString(recordListStorageKeys.avatarSeed) || "" : "";
     const shouldMigrateLegacyAvatar = Boolean(
@@ -733,7 +733,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
     setSelectedTaskId(deepLinkedRecord?.kind === "task" ? deepLinkedRecord.id : null);
     setSelectedResourceId(deepLinkedRecord && ["note", "link", "media"].includes(deepLinkedRecord.kind) ? deepLinkedRecord.id : null);
     setClientStorageHydrated(true);
-  }, [demoDataEnabled, demoRecordIdSet, members, records, sessionMemberId]);
+  }, [demoDataEnabled, demoRecordIdSet, perspectiveMembers, records, sessionMemberId]);
 
   useEffect(() => {
     if (!clientStorageHydrated || deepLinkHandledRef.current) return;

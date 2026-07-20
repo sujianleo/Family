@@ -99,7 +99,7 @@ export async function createInvite(input: {
   const metadata: Json = {
     entry_path: target.entryPath,
     family_name: target.familyName,
-    inviter_name: input.actorName || actor.displayName,
+    inviter_name: actor.displayName,
     target_name: input.targetName?.trim().slice(0, 40) || "",
     avatar_seed: input.avatarSeed?.trim().slice(0, 80) || "",
     relationship_label: input.relationshipLabel?.trim().slice(0, 24) || "",
@@ -122,7 +122,7 @@ export async function createInvite(input: {
   if (error) throw new InviteAccessError("邀请创建失败，请稍后再试。", 503);
   await createRawEvent({
     actorMemberId: actor.memberId,
-    actorName: input.actorName || actor.displayName,
+    actorName: actor.displayName,
     familyId: input.familyId,
     rawPayload: { invite_id: inviteId, invite_type: input.type, group_id: target.groupId, max_use: maxUse },
     rawText: "创建邀请",

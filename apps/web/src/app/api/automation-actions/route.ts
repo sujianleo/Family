@@ -9,7 +9,7 @@ import { runAutomationAction, runAutomationPipeline } from "@/lib/server/automat
 import { extractKnowledgeCandidate } from "@/lib/server/assistantExtractors";
 import { invokeDeepSeekJson } from "@/lib/server/langchainAi";
 import { detectDangerousOperation } from "@/lib/safetyGuard";
-import { readFamilyMembersWithOverrides } from "@/lib/server/memberOverrides";
+import { readFamilyMembersForContext } from "@/lib/server/familyMembers";
 import { appActionCatalog } from "@/lib/appActionCatalog";
 
 type AutomationActionRequest = {
@@ -55,8 +55,7 @@ export async function POST(request: Request) {
     const actorMemberId =
       context.userId === "local-development" && requestedLocalMemberId ? requestedLocalMemberId : context.memberId;
     const actorName =
-      (await readFamilyMembersWithOverrides("data")).find((member) => member.id === actorMemberId)?.displayName ||
-      readString(body.actor_name) ||
+      (await readFamilyMembersForContext(context)).find((member) => member.id === actorMemberId)?.displayName ||
       actorMemberId;
     const actionId = readString(body.action_id);
     const pipelineId = readString(body.pipeline_id);
