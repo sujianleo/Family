@@ -780,29 +780,26 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
     }
 
     let active = true;
-    const cancelIdleFetch = runWhenBrowserIdle(() => {
-      familyFetch("/api/family-records", { cache: "no-store" })
-        .then((response) => (response.ok ? response.json() : null))
-        .then((payload) => {
-          if (!active) {
-            return;
-          }
+    void familyFetch("/api/family-records", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!active) {
+          return;
+        }
 
-          const serverRecords = readFamilyRecordsResponse(payload).filter(
-            (record) => demoDataEnabled || !demoRecordIdSet.has(record.id)
-          );
-          if (!serverRecords.length) {
-            return;
-          }
+        const serverRecords = readFamilyRecordsResponse(payload).filter(
+          (record) => demoDataEnabled || !demoRecordIdSet.has(record.id)
+        );
+        if (!serverRecords.length) {
+          return;
+        }
 
-          setLocalRecords((currentRecords) => mergeServerRecords(serverRecords, currentRecords));
-        })
-        .catch(() => undefined);
-    });
+        setLocalRecords((currentRecords) => mergeServerRecords(serverRecords, currentRecords));
+      })
+      .catch(() => undefined);
 
     return () => {
       active = false;
-      cancelIdleFetch();
     };
   }, [clientStorageHydrated, demoDataEnabled, demoRecordIdSet, sessionMemberId]);
 
