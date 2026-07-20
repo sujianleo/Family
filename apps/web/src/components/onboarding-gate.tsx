@@ -122,16 +122,11 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   return (
     <main className={`${styles.shell} ${themeFamily === "dopamine" ? styles.dopamine : ""}`.trim()}>
       <section aria-label="新用户引导" className={styles.card}>
-        <header className={styles.brand}>
-          <Image alt="我爱饭米粒" className={styles.logo} height={72} priority src="/family-logo-v2.png" width={72} />
-          <div>
-            <span>我爱饭米粒</span>
-            <small>用心记录 · 守护家庭</small>
-          </div>
-        </header>
+        {step !== "welcome" ? <Brand /> : null}
 
         {step === "welcome" ? (
           <div className={styles.welcome}>
+            <Brand className={styles.welcomeBrand} />
             <p className={styles.eyebrow}>欢迎</p>
             <h1>创建你的家庭空间</h1>
             <p className={styles.lead}>确认访问方式，即可开始。</p>
@@ -209,6 +204,18 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
     setThemeFamily(nextThemeFamily);
     applyThemeFamily(nextThemeFamily);
   }
+}
+
+function Brand({ className = "" }: { className?: string }) {
+  return (
+    <header className={`${styles.brand} ${className}`.trim()}>
+      <Image alt="我爱饭米粒" className={styles.logo} height={72} priority src="/family-logo-v2.png" width={72} />
+      <div>
+        <span>我爱饭米粒</span>
+        <small>用心记录 · 守护家庭</small>
+      </div>
+    </header>
+  );
 }
 
 function StepHeader({ current, description, title }: { current: 1 | 2; description: string; title: string }) {

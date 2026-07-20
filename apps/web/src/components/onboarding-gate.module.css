@@ -48,7 +48,12 @@
   padding: 34px 0 24px;
 }
 
-.welcome { padding: 0; }
+.welcome {
+  grid-row: 1 / -1;
+  padding: 0;
+}
+
+.welcomeBrand { margin-bottom: 6px; }
 
 .themeChoice {
   display: grid;
