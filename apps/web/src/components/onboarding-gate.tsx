@@ -208,7 +208,6 @@ function Brand({ className = "" }: { className?: string }) {
     <header className={`${styles.brand} ${className}`.trim()}>
       <Image alt="我爱饭米粒" className={styles.logo} height={72} priority src="/family-logo-v2.png" width={72} />
       <div>
-        <span>我爱饭米粒</span>
         <small>用心记录 · 守护家庭</small>
       </div>
     </header>
