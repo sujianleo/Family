@@ -15,7 +15,11 @@ export async function GET(request: Request) {
     const service = createServiceSupabaseClient() as any;
     if (!service || !isUuid(context.familyId)) {
       const members = await readFamilyMembersWithOverrides("data");
-      return NextResponse.json({ members: applyLocalRelationshipPerspective(members, context.memberId) });
+      const currentMember = members.find((member) => member.id === context.memberId);
+      return NextResponse.json({
+        members: applyLocalRelationshipPerspective(members, context.memberId),
+        session: { memberId: context.memberId, role: sessionRole(currentMember?.role) }
+      });
     }
     const [{ data: members, error }, { data: relationships }, { data: family }] = await Promise.all([
       service.from("family_members").select("id,display_name,role,relationship_role,household_roles,status,avatar_seed,color,profile_json").eq("family_id", context.familyId).order("created_at"),
@@ -37,7 +41,11 @@ export async function GET(request: Request) {
     const ownerMember = family?.created_by ? await service.from("family_members").select("id").eq("family_id", context.familyId).eq("user_id", family.created_by).maybeSingle() : { data: null };
     const explicitEdges: RelationshipEdge[] = (relationships || []).map((item: any) => ({ objectMemberId: item.object_member_id, relationshipKind: item.relationship_kind, relationshipLabel: item.relationship_label, subjectMemberId: item.subject_member_id }));
     const legacyEdges = ownerMember.data?.id ? buildLegacyOwnerEdges(normalizedMembers, ownerMember.data.id, explicitEdges) : [];
-    return NextResponse.json({ members: resolveRelationshipPerspective(normalizedMembers, context.memberId, [...explicitEdges, ...legacyEdges]) });
+    const currentMember = normalizedMembers.find((member: any) => member.id === context.memberId);
+    return NextResponse.json({
+      members: resolveRelationshipPerspective(normalizedMembers, context.memberId, [...explicitEdges, ...legacyEdges]),
+      session: { memberId: context.memberId, role: sessionRole(currentMember?.role) }
+    });
   } catch (error) {
     if (error instanceof FamilyRequestContextError) return NextResponse.json({ detail: error.message }, { status: error.status });
     return NextResponse.json({ detail: "家庭成员读取失败。" }, { status: 500 });
@@ -136,6 +144,7 @@ export async function DELETE(request: Request) {
 }
 
 function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
+function sessionRole(value: unknown) { return value === "owner" || value === "admin" ? "admin" as const : "member" as const; }
 
 function parseMemberProfilePatch(body: { age?: unknown; birthCalendar?: unknown; birthDate?: unknown }) {
   const birthCalendar = body.birthCalendar === "lunar" ? "lunar" as const : body.birthCalendar === "solar" ? "solar" as const : undefined;

@@ -574,32 +574,25 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/auth/session", { cache: "no-store" })
-      .then(async (response) => response.ok ? response.json() as Promise<{ memberId?: string | null; role?: "admin" | "member" | null }> : null)
-      .then((session) => {
-        if (!cancelled) setSessionRole(session?.role || null);
-        const memberId = session?.memberId?.trim();
-        if (cancelled || !memberId || memberId === sessionMemberId) return;
-        const member = members.find((candidate) => candidate.id === memberId);
+    void familyFetch("/api/family-members", { cache: "no-store" })
+      .then(async (response) => response.ok ? response.json() as Promise<{
+        members?: FamilyMember[];
+        session?: { memberId?: string | null; role?: "admin" | "member" | null };
+      }> : null)
+      .then((payload) => {
+        if (cancelled || !payload) return;
+        if (payload.members?.length) setPerspectiveMembers(payload.members);
+        setSessionRole(payload.session?.role || null);
+        const memberId = payload.session?.memberId?.trim();
+        if (!memberId || memberId === sessionMemberId) return;
+        const member = payload.members?.find((candidate) => candidate.id === memberId)
+          || members.find((candidate) => candidate.id === memberId);
         currentMemberId = memberId;
         setSessionMemberId(memberId);
         if (member) {
           setAvatarSeed(member.avatarSeed);
           setAvatarProfile({ displayName: member.displayName, nickname: "", title: member.role || "家庭成员" });
         }
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [members, sessionMemberId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void familyFetch("/api/family-members", { cache: "no-store" })
-      .then(async (response) => response.ok ? response.json() as Promise<{ members?: FamilyMember[] }> : null)
-      .then((payload) => {
-        if (!cancelled && payload?.members?.length) setPerspectiveMembers(payload.members);
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
