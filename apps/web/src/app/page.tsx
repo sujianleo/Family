@@ -14,10 +14,11 @@ export default async function HomePage() {
     headers()
   ]);
   const localAuthConfigured = isLocalAuthConfigured();
+  const demoDataEnabled = process.env.FAMILY_APP_DEMO_DATA === "true";
   const session = readLocalSession(new Request("http://family-app.local/", { headers: requestHeaders }));
   const initialSignedIn = !localAuthConfigured || Boolean(session);
   const initialMemberId = session?.memberId || process.env.NEXT_PUBLIC_SUPABASE_MEMBER_ID || "me";
-  const initialRecords = localAuthConfigured ? [] : familyRecords;
+  const initialRecords = !localAuthConfigured && demoDataEnabled ? familyRecords : [];
   const navItems: NavItem[] = [
     { label: "任务", count: initialRecords.filter((item) => item.kind === "task" && !(item.inviteLink || item.chatMembers?.length)).length },
     { label: "群组", count: initialRecords.filter((item) => item.inviteLink || item.chatMembers?.length).length }
