@@ -7835,7 +7835,9 @@ html[data-visual-theme="mono"] .theme-card.selected::after { background: #111; c
 .status-dot.idle { background: var(--soft); box-shadow: 0 0 0 4px color-mix(in srgb, var(--soft) 12%, transparent); }
 .status-dot.connected,
 .provider-status.connected i { background: #34c759; box-shadow: 0 0 0 4px rgba(52, 199, 89, .11); }
+.provider-status.idle i { background: #8e8e93; box-shadow: 0 0 0 4px rgba(142, 142, 147, .1); }
 .provider-status.testing i { background: #ff9f0a; box-shadow: 0 0 0 4px rgba(255, 159, 10, .12); animation: settings-pulse 900ms ease infinite; }
+.provider-test-detail { margin: 8px 2px 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 @keyframes settings-pulse { 50% { opacity: .35; transform: scale(.72); } }
 
 .compact-fields { display: grid; gap: 8px; }

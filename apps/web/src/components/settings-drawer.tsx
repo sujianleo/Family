@@ -22,7 +22,7 @@ type ThemeFamily = "mono" | "dopamine";
 type ThemeMode = "auto" | "light" | "dark";
 type NetworkMode = "internet" | "local" | "auto";
 type ActiveNetwork = "internet" | "local" | null;
-type ProviderStatus = "connected" | "failed" | "testing";
+type ProviderStatus = "connected" | "failed" | "idle" | "testing";
 type ConnectivityStatus = "idle" | "testing" | "success" | "failed";
 type ProviderKind =
   | "deepseek"
@@ -97,6 +97,7 @@ type AiProvider = {
   deepModel: string;
   fastModel: string;
   status: ProviderStatus;
+  testDetail?: string;
 };
 
 type ProviderPreset = {
@@ -425,7 +426,7 @@ const defaultProviders: AiProvider[] = [
     apiKey: "",
     deepModel: "deepseek-v4-pro",
     fastModel: "deepseek-v4-flash",
-    status: "connected"
+    status: "idle"
   }
 ];
 
@@ -679,12 +680,39 @@ export function SettingsDrawer({ currentMemberId, isFamilyAdmin, members, open, 
   }, [open, section]);
 
   function updateProvider(id: string, patch: Partial<AiProvider>) {
-    setProviders((current) => current.map((provider) => provider.id === id ? { ...provider, ...patch } : provider));
+    const configurationChanged = ["apiKey", "deepModel", "endpoint", "fastModel", "kind"].some((key) => key in patch);
+    setProviders((current) => current.map((provider) => provider.id === id
+      ? { ...provider, ...(configurationChanged ? { status: "idle" as const, testDetail: "" } : {}), ...patch }
+      : provider));
   }
 
-  function testProvider(id: string) {
-    updateProvider(id, { status: "testing" });
-    window.setTimeout(() => updateProvider(id, { status: "connected" }), 1100);
+  async function testProvider(id: string) {
+    const provider = providers.find((candidate) => candidate.id === id);
+    if (!provider) return;
+    updateProvider(id, { status: "testing", testDetail: "" });
+    try {
+      const response = await familyFetch("/api/ai-tuning", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          apiKey: provider.apiKey,
+          endpoint: provider.endpoint,
+          kind: provider.kind,
+          model: provider.fastModel
+        })
+      });
+      const payload = await response.json() as { detail?: string; profile?: AiTuningProfile };
+      if (!response.ok || !payload.profile) throw new Error(payload.detail || "API 连接测试失败。");
+      updateProvider(id, {
+        status: "connected",
+        testDetail: provider.apiKey.trim() ? "API 已通过真实请求验证。" : "服务器 API 配置已通过真实请求验证。"
+      });
+    } catch (error) {
+      updateProvider(id, {
+        status: "failed",
+        testDetail: error instanceof Error ? error.message : "API 连接测试失败。"
+      });
+    }
   }
 
   async function runAiTuning() {
@@ -1441,7 +1469,7 @@ function ThemePreview({ family }: { family: ThemeFamily }) {
 
 function ProviderCard({ provider, usage, onChange, onRemove, onTest }: { provider: AiProvider; usage?: ApiUsageState; onChange: (patch: Partial<AiProvider>) => void; onRemove: () => void; onTest: () => void }) {
   const [confirmingRemove, setConfirmingRemove] = useState(false);
-  const statusText = provider.status === "connected" ? "已连接" : provider.status === "testing" ? "测试中" : "连接失败";
+  const statusText = provider.status === "connected" ? "已连接" : provider.status === "testing" ? "测试中" : provider.status === "idle" ? "未测试" : "连接失败";
   const kind = provider.kind || "custom";
   const preset = providerPresets.find((candidate) => candidate.kind === kind) || providerPresets.at(-1)!;
   const codingPlanOnly = preset.group === "Coding Plan";
@@ -1453,7 +1481,8 @@ function ProviderCard({ provider, usage, onChange, onRemove, onTest }: { provide
       endpoint: nextPreset.endpoint,
       deepModel: nextPreset.deepModels[0]?.id || "",
       fastModel: nextPreset.fastModels[0]?.id || "",
-      status: "failed"
+      status: "idle",
+      testDetail: ""
     });
   };
   return (
@@ -1507,6 +1536,7 @@ function ProviderCard({ provider, usage, onChange, onRemove, onTest }: { provide
       <button className="provider-test" disabled={codingPlanOnly || provider.status === "testing"} onClick={onTest} type="button">
         {codingPlanOnly ? "仅供编程工具配置" : provider.status === "testing" ? "正在测试 API…" : "测试 API"}
       </button>
+      {provider.testDetail ? <p className="provider-test-detail" role="status">{provider.testDetail}</p> : null}
     </article>
   );
 }
