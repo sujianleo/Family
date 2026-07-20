@@ -8260,8 +8260,8 @@ function isFamilyRecordLike(record: unknown): record is FamilyRecord {
 }
 
 function mergeServerRecords(serverRecords: FamilyRecord[], currentRecords: FamilyRecord[]) {
-  const currentIds = new Set(currentRecords.map((record) => record.id));
-  return [...serverRecords.filter((record) => !currentIds.has(record.id)), ...currentRecords];
+  const serverIds = new Set(serverRecords.map((record) => record.id));
+  return [...serverRecords, ...currentRecords.filter((record) => !serverIds.has(record.id))];
 }
 
 function mergeRecordDisplayDefaults(storedRecords: FamilyRecord[] | null, defaults: FamilyRecord[]) {
