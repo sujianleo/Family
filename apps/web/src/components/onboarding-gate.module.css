@@ -11,6 +11,7 @@
 
 .card {
   display: grid;
+  grid-template-rows: auto 1fr;
   width: min(100%, 430px);
   min-height: min(760px, calc(100dvh - 48px));
   border: 1px solid rgba(17, 17, 17, 0.1);
@@ -45,6 +46,54 @@
   gap: 18px;
   padding: 34px 0 24px;
 }
+
+.welcome { padding: 0; }
+
+.themeChoice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.themeChoice button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 50px;
+  border: 1px solid #dededb;
+  border-radius: 15px;
+  background: #fff;
+  color: #555;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.themeChoice button.themeSelected {
+  border-color: #111;
+  color: #111;
+  box-shadow: inset 0 0 0 1px #111;
+}
+
+.themeChoice i {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.monoSwatch { border: 6px solid #111; background: #fff; }
+.dopamineSwatch { background: conic-gradient(#ff5e7a, #ffb547, #58c98b, #6f67ff, #ff5e7a); }
+
+.shell.dopamine {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 94, 122, 0.1), transparent 34%),
+    radial-gradient(circle at 100% 100%, rgba(111, 103, 255, 0.12), transparent 38%),
+    #fffaf8;
+}
+
+.dopamine .primary { background: linear-gradient(135deg, #ff5e7a, #7967f2); }
+.dopamine .themeChoice button.themeSelected { border-color: #7967f2; box-shadow: inset 0 0 0 1px #7967f2; }
 
 .eyebrow {
   margin: 0;
@@ -94,7 +143,8 @@
 .field { display: grid; gap: 7px; }
 .field > span { font-size: 13px; font-weight: 760; }
 .field em { color: #888; font-size: 11px; font-style: normal; font-weight: 600; }
-.field input {
+.field input,
+.field select {
   width: 100%;
   min-height: 52px;
   border: 1px solid #dededb;
@@ -106,25 +156,22 @@
   font-size: 14px;
   outline: none;
 }
-.field input:focus { border-color: #777; box-shadow: 0 0 0 4px rgba(17, 17, 17, 0.06); }
+.field select { appearance: auto; }
+.field input:focus,
+.field select:focus { border-color: #777; box-shadow: 0 0 0 4px rgba(17, 17, 17, 0.06); }
 .field input::placeholder { color: #aaa; }
 .field small { color: #888; font-size: 11px; line-height: 1.5; }
 .message { margin: -4px 0 0; color: #9a4438; font-size: 12px; }
-
-.summary {
-  display: grid;
-  gap: 5px;
-  border-radius: 18px;
-  padding: 15px 16px;
-  background: #f3f3f1;
-}
-.summary span { color: #777; font-size: 11px; }
-.summary strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-.summary small { color: #777; font-size: 11px; }
 .actions { display: grid; grid-template-columns: minmax(96px, 0.36fr) minmax(0, 1fr); gap: 10px; margin-top: 4px; }
 
 @media (max-width: 520px) {
   .shell { display: block; padding: 0; background: #fff; }
+  .shell.dopamine {
+    background:
+      radial-gradient(circle at 4% 0%, rgba(255, 94, 122, 0.1), transparent 34%),
+      radial-gradient(circle at 100% 100%, rgba(111, 103, 255, 0.12), transparent 40%),
+      #fffaf8;
+  }
   .card {
     width: 100%;
     min-height: 100dvh;
@@ -133,6 +180,6 @@
     padding: max(22px, env(safe-area-inset-top)) 22px max(18px, env(safe-area-inset-bottom));
     box-shadow: none;
   }
-  .welcome,
   .form { padding-top: 32px; }
+  .welcome { padding: 0; }
 }

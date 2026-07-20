@@ -8,6 +8,26 @@ const onboardingStorageKey = "family-app.onboarding.v1";
 const settingsStorageKey = "family-app.settings.v1";
 
 type OnboardingStep = "welcome" | "network" | "ai";
+type ThemeFamily = "mono" | "dopamine";
+type OnboardingProviderKind = "deepseek" | "kimi" | "qwen" | "zhipu" | "volcengine" | "hunyuan" | "gemini" | "anthropic" | "openai";
+
+const onboardingProviderPresets: Array<{
+  deepModel: string;
+  endpoint: string;
+  fastModel: string;
+  kind: OnboardingProviderKind;
+  label: string;
+}> = [
+  { kind: "deepseek", label: "DeepSeek", endpoint: "https://api.deepseek.com", deepModel: "deepseek-v4-pro", fastModel: "deepseek-v4-flash" },
+  { kind: "kimi", label: "Kimi", endpoint: "https://api.moonshot.cn/v1", deepModel: "kimi-k2.7-code", fastModel: "kimi-k2.7-code-highspeed" },
+  { kind: "qwen", label: "通义千问", endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1", deepModel: "qwen3.7-max", fastModel: "qwen3.6-flash" },
+  { kind: "zhipu", label: "智谱 GLM", endpoint: "https://open.bigmodel.cn/api/paas/v4", deepModel: "glm-5.2", fastModel: "glm-4.7-flashx" },
+  { kind: "volcengine", label: "火山方舟", endpoint: "https://ark.cn-beijing.volces.com/api/v3", deepModel: "doubao-seed-2-0-pro-260215", fastModel: "doubao-seed-2-0-lite-260215" },
+  { kind: "hunyuan", label: "腾讯混元", endpoint: "https://api.hunyuan.cloud.tencent.com/v1", deepModel: "hunyuan-turbos-latest", fastModel: "hunyuan-lite" },
+  { kind: "gemini", label: "Google Gemini", endpoint: "https://generativelanguage.googleapis.com/v1beta/openai", deepModel: "gemini-3.1-pro-preview", fastModel: "gemini-3.5-flash" },
+  { kind: "anthropic", label: "Anthropic Claude", endpoint: "https://api.anthropic.com/v1", deepModel: "claude-opus-4-7", fastModel: "claude-sonnet-4-6" },
+  { kind: "openai", label: "OpenAI", endpoint: "https://api.openai.com/v1", deepModel: "gpt-5.2", fastModel: "gpt-5-mini" }
+];
 
 type StoredSettings = {
   activeNetwork?: "internet" | "local" | null;
@@ -16,6 +36,7 @@ type StoredSettings = {
   providers?: Array<Record<string, unknown>>;
   serverPort?: string;
   serverUrl?: string;
+  themeFamily?: ThemeFamily;
   [key: string]: unknown;
 };
 
@@ -25,10 +46,20 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   const [publicDomain, setPublicDomain] = useState("");
   const [lanAddress, setLanAddress] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [themeFamily, setThemeFamily] = useState<ThemeFamily>("mono");
+  const [providerKind, setProviderKind] = useState<OnboardingProviderKind>("deepseek");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     try {
+      const storedSettings = JSON.parse(window.localStorage.getItem(settingsStorageKey) || "{}") as StoredSettings;
+      const storedThemeFamily = storedSettings.themeFamily === "dopamine" ? "dopamine" : "mono";
+      const storedProviderKind = storedSettings.providers?.find((provider) =>
+        onboardingProviderPresets.some((preset) => preset.kind === provider.kind)
+      )?.kind;
+      setThemeFamily(storedThemeFamily);
+      if (typeof storedProviderKind === "string") setProviderKind(storedProviderKind as OnboardingProviderKind);
+      applyThemeFamily(storedThemeFamily);
       const onboarding = JSON.parse(window.localStorage.getItem(onboardingStorageKey) || "null") as { completed?: boolean } | null;
       if (onboarding?.completed) {
         setReady(true);
@@ -65,9 +96,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
       storedSettings = {};
     }
 
-    const providers = apiKey.trim()
-      ? upsertDeepSeekProvider(storedSettings.providers, apiKey.trim())
-      : storedSettings.providers;
+    const providers = upsertAiProvider(storedSettings.providers, providerKind, apiKey.trim());
     window.localStorage.setItem(settingsStorageKey, JSON.stringify({
       ...storedSettings,
       activeNetwork: "internet",
@@ -75,7 +104,8 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
       networkMode: "auto",
       providers,
       serverPort: publicTarget.port,
-      serverUrl: publicTarget.host
+      serverUrl: publicTarget.host,
+      themeFamily
     }));
     window.localStorage.setItem(onboardingStorageKey, JSON.stringify({
       aiConfigured: Boolean(apiKey.trim()),
@@ -88,7 +118,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   }
 
   return (
-    <main className={styles.shell}>
+    <main className={`${styles.shell} ${themeFamily === "dopamine" ? styles.dopamine : ""}`.trim()}>
       <section aria-label="新用户引导" className={styles.card}>
         <header className={styles.brand}>
           <Image alt="我爱饭米粒" className={styles.logo} height={72} priority src="/family-logo-v2.png" width={72} />
@@ -103,6 +133,26 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
             <p className={styles.eyebrow}>欢迎</p>
             <h1>创建你的家庭空间</h1>
             <p className={styles.lead}>确认访问方式，即可开始。</p>
+            <div aria-label="选择配色" className={styles.themeChoice} role="group">
+              <button
+                aria-pressed={themeFamily === "mono"}
+                className={themeFamily === "mono" ? styles.themeSelected : ""}
+                onClick={() => selectThemeFamily("mono")}
+                type="button"
+              >
+                <i aria-hidden="true" className={styles.monoSwatch} />
+                黑白配
+              </button>
+              <button
+                aria-pressed={themeFamily === "dopamine"}
+                className={themeFamily === "dopamine" ? styles.themeSelected : ""}
+                onClick={() => selectThemeFamily("dopamine")}
+                type="button"
+              >
+                <i aria-hidden="true" className={styles.dopamineSwatch} />
+                多巴胺
+              </button>
+            </div>
             <button className={styles.primary} onClick={() => setStep("network")} type="button">开始</button>
           </div>
         ) : null}
@@ -130,15 +180,19 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
           <div className={styles.form}>
             <StepHeader current={2} title="连接 AI" description="可选，稍后也能设置。" />
             <label className={styles.field}>
-              <span>DeepSeek API Key <em>可选</em></span>
+              <span>AI 提供商</span>
+              <select aria-label="AI 提供商" onChange={(event) => {
+                setProviderKind(event.target.value as OnboardingProviderKind);
+                setApiKey("");
+              }} value={providerKind}>
+                {onboardingProviderPresets.map((provider) => <option key={provider.kind} value={provider.kind}>{provider.label}</option>)}
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span>{onboardingProviderPresets.find((provider) => provider.kind === providerKind)?.label} API Key <em>可选</em></span>
               <input autoComplete="off" onChange={(event) => setApiKey(event.target.value)} placeholder="sk-••••••••" type="password" value={apiKey} />
               <small>仅保存在当前浏览器。</small>
             </label>
-            <div className={styles.summary}>
-              <span>当前地址</span>
-              <strong>{publicDomain}</strong>
-              <small>{lanAddress ? `局域网 ${lanAddress}` : "未设置局域网地址"}</small>
-            </div>
             <div className={styles.actions}>
               <button className={styles.secondary} onClick={() => setStep("network")} type="button">返回</button>
               <button className={styles.primary} onClick={completeOnboarding} type="button">进入家庭空间</button>
@@ -148,6 +202,11 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
       </section>
     </main>
   );
+
+  function selectThemeFamily(nextThemeFamily: ThemeFamily) {
+    setThemeFamily(nextThemeFamily);
+    applyThemeFamily(nextThemeFamily);
+  }
 }
 
 function StepHeader({ current, description, title }: { current: 1 | 2; description: string; title: string }) {
@@ -173,6 +232,12 @@ function normalizePublicDomain(value: string) {
   }
 }
 
+function applyThemeFamily(themeFamily: ThemeFamily) {
+  const root = document.documentElement;
+  root.dataset.visualTheme = themeFamily;
+  root.dataset.colorScheme ||= window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 function normalizeLanAddress(value: string) {
   return value.trim().replace(/^https?:\/\//i, "").split("/")[0] || "";
 }
@@ -182,19 +247,22 @@ function parsePublicTarget(value: string) {
   return { host: target.hostname, port: target.port || (target.protocol === "http:" ? "80" : "443") };
 }
 
-function upsertDeepSeekProvider(providers: Array<Record<string, unknown>> | undefined, apiKey: string) {
+function upsertAiProvider(providers: Array<Record<string, unknown>> | undefined, providerKind: OnboardingProviderKind, apiKey: string) {
   const next = Array.isArray(providers) ? [...providers] : [];
+  const preset = onboardingProviderPresets.find((provider) => provider.kind === providerKind) || onboardingProviderPresets[0];
+  const existing = next.find((item) => item.id === providerKind || item.kind === providerKind);
   const provider = {
-    apiKey,
-    deepModel: "deepseek-v4-pro",
-    endpoint: "https://api.deepseek.com",
-    fastModel: "deepseek-v4-flash",
-    id: "deepseek",
-    kind: "deepseek",
-    name: "DeepSeek",
-    status: "connected"
+    ...existing,
+    apiKey: apiKey || (typeof existing?.apiKey === "string" ? existing.apiKey : ""),
+    deepModel: preset.deepModel,
+    endpoint: preset.endpoint,
+    fastModel: preset.fastModel,
+    id: preset.kind,
+    kind: preset.kind,
+    name: preset.label,
+    status: apiKey ? "connected" : existing?.status || "failed"
   };
-  const index = next.findIndex((item) => item.id === "deepseek" || item.kind === "deepseek");
+  const index = next.findIndex((item) => item.id === providerKind || item.kind === providerKind);
   if (index >= 0) next[index] = { ...next[index], ...provider };
   else next.unshift(provider);
   return next;
