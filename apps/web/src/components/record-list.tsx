@@ -624,6 +624,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
     [localRecords]
   );
   const resourceRecords = useMemo(() => localRecords.filter((record) => isResourceRecord(record)), [localRecords]);
+  const hasFamilyRecords = taskRecords.length > 0 || groupRecords.length > 0 || resourceRecords.length > 0;
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [inviteTaskId, setInviteTaskId] = useState<string | null>(null);
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
@@ -1630,61 +1631,69 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
         }
       }}
     >
-      <RecordGroup
-        collapsed={Boolean(collapsedGroups["任务"])}
-        collapsible
-        expandedSwipeTask={expandedSwipeTask}
-        membersById={membersById}
-        onCompleteTask={handleCompleteTask}
-        onCycleTaskSort={cycleTaskSort}
-        onDeleteRecord={handleSoftDeleteTask}
-        onExpandSwipeTask={(recordId, side) => setExpandedSwipeTask(recordId && side ? { id: recordId, side } : null)}
-        onLongPressTask={ignoreRecordAction}
-        onOpenTask={setSelectedTaskId}
-        onToggleSelectedRecord={handleToggleSelectedRecord}
-        onToggleCollapse={syncNativeGroupToggle}
-        records={sortedTaskRecords}
-        selectedRecordIds={selectedRecordIds}
-        selectionMode={false}
-        sortLabel={taskSortLabels[taskSortMode]}
-        title="任务"
-        variant="inbox"
-      />
-      <details
-        className={collapsedGroups["群组"] ? "record-group collapsed" : "record-group"}
-        data-feature="groups"
-        open={!collapsedGroups["群组"]}
-        onToggle={(event) => syncNativeGroupToggle("群组", event.currentTarget.open)}
-      >
-        <summary aria-expanded={!collapsedGroups["群组"]} className="record-group-toggle">
-          <span>{formatSectionTitle("群组", groupRecords.length, Boolean(collapsedGroups["群组"]))}</span>
-        </summary>
-        <div className="record-group-body">
-          <GroupChatList
+      {hasFamilyRecords ? (
+        <>
+          <RecordGroup
+            collapsed={Boolean(collapsedGroups["任务"])}
+            collapsible
+            expandedSwipeTask={expandedSwipeTask}
             membersById={membersById}
+            onCompleteTask={handleCompleteTask}
+            onCycleTaskSort={cycleTaskSort}
             onDeleteRecord={handleSoftDeleteTask}
-            onLongPressChat={ignoreRecordAction}
-            onOpenChat={setSelectedTaskId}
-            records={groupRecords}
+            onExpandSwipeTask={(recordId, side) => setExpandedSwipeTask(recordId && side ? { id: recordId, side } : null)}
+            onLongPressTask={ignoreRecordAction}
+            onOpenTask={setSelectedTaskId}
+            onToggleSelectedRecord={handleToggleSelectedRecord}
+            onToggleCollapse={syncNativeGroupToggle}
+            records={sortedTaskRecords}
+            selectedRecordIds={selectedRecordIds}
             selectionMode={false}
+            sortLabel={taskSortLabels[taskSortMode]}
+            title="任务"
+            variant="inbox"
           />
+          <details
+            className={collapsedGroups["群组"] ? "record-group collapsed" : "record-group"}
+            data-feature="groups"
+            open={!collapsedGroups["群组"]}
+            onToggle={(event) => syncNativeGroupToggle("群组", event.currentTarget.open)}
+          >
+            <summary aria-expanded={!collapsedGroups["群组"]} className="record-group-toggle">
+              <span>{formatSectionTitle("群组", groupRecords.length, Boolean(collapsedGroups["群组"]))}</span>
+            </summary>
+            <div className="record-group-body">
+              <GroupChatList
+                membersById={membersById}
+                onDeleteRecord={handleSoftDeleteTask}
+                onLongPressChat={ignoreRecordAction}
+                onOpenChat={setSelectedTaskId}
+                records={groupRecords}
+                selectionMode={false}
+              />
+            </div>
+          </details>
+          <RecordGroup
+            collapsed={Boolean(collapsedGroups["资料"])}
+            collapsible
+            membersById={membersById}
+            onDeleteRecord={handleDeleteRecord}
+            onLongPressTask={handleStartResourceSelection}
+            onOpenTask={setSelectedResourceId}
+            onToggleSelectedRecord={handleToggleSelectedRecord}
+            onToggleCollapse={syncNativeGroupToggle}
+            records={resourceRecords}
+            selectedRecordIds={selectedRecordIds}
+            selectionMode={multiSelectMode}
+            title="资料"
+            variant="source"
+          />
+        </>
+      ) : clientStorageHydrated ? (
+        <div className="family-empty-state" role="status">
+          <p><strong>从一句话开始</strong>，例如：周末给父母打个电话。</p>
         </div>
-      </details>
-      <RecordGroup
-        collapsed={Boolean(collapsedGroups["资料"])}
-        collapsible
-        membersById={membersById}
-        onDeleteRecord={handleDeleteRecord}
-        onLongPressTask={handleStartResourceSelection}
-        onOpenTask={setSelectedResourceId}
-        onToggleSelectedRecord={handleToggleSelectedRecord}
-        onToggleCollapse={syncNativeGroupToggle}
-        records={resourceRecords}
-        selectedRecordIds={selectedRecordIds}
-        selectionMode={multiSelectMode}
-        title="资料"
-        variant="source"
-      />
+      ) : null}
 
       <CaptureComposer
         accountSettingsToken={accountSettingsToken}
