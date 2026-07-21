@@ -247,8 +247,27 @@ function configureWebPush() {
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
   if (!publicKey || !privateKey) return false;
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:admin@family-app.local", publicKey, privateKey);
+  webpush.setVapidDetails(resolveVapidSubject(), publicKey, privateKey);
   return true;
+}
+function resolveVapidSubject() {
+  const configured = process.env.VAPID_SUBJECT?.trim();
+  if (configured && isPublicVapidSubject(configured)) return configured;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (appUrl && isPublicVapidSubject(appUrl)) return appUrl;
+  return "https://example.com";
+}
+function isPublicVapidSubject(value: string) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol === "mailto:") {
+      const domain = parsed.pathname.split("@").at(-1)?.toLowerCase() || "";
+      return domain.includes(".") && !domain.endsWith(".local");
+    }
+    return parsed.protocol === "https:" && parsed.hostname !== "localhost" && !parsed.hostname.endsWith(".local");
+  } catch {
+    return false;
+  }
 }
 async function readJsonl<T>(filePath: string): Promise<T[]> { try { return (await readFile(filePath, "utf8")).split("\n").filter(Boolean).map((line) => JSON.parse(line) as T); } catch { return []; } }
 async function appendJsonl(filePath: string, row: unknown) { await mkdir(path.dirname(filePath), { recursive: true }); await appendFile(filePath, `${JSON.stringify(row)}\n`, "utf8"); }
