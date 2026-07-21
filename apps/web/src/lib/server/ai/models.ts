@@ -30,6 +30,10 @@ export function createDeepModel(options: LangChainJsonOptions = {}) {
   return getDeepModelClient(options);
 }
 
+export function getDeepModel(options: LangChainJsonOptions = {}) {
+  return createDeepModel(options);
+}
+
 export async function invokeStructured<T>(
   messages: BaseMessageLike[],
   schema: z.ZodType<T>,
