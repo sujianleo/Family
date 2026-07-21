@@ -3,6 +3,7 @@ import { routeAssistantWithLangChain } from "@/lib/server/assistantChain";
 import type { AssistantConversationTurn, AssistantDialogueState } from "@/lib/assistantRouter";
 import { FamilyRequestContextError, requireFamilyRequestContext } from "@/lib/server/familyRequestContext";
 import { readFamilyMembersForContext } from "@/lib/server/familyMembers";
+import { recordRuntimeEvent } from "@/lib/server/runtimeLog";
 
 type AssistantRouteRequest = {
   actor_member_id?: unknown;
@@ -16,6 +17,7 @@ type AssistantRouteRequest = {
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   try {
     const context = await requireFamilyRequestContext(request);
     const body = (await request.json()) as AssistantRouteRequest;
@@ -36,11 +38,28 @@ export async function POST(request: Request) {
       recentConversation: readConversation(body.recent_conversation),
       recentUserTexts: readStringArray(body.recent_user_texts)
     });
+    await recordRuntimeEvent({
+      durationMs: Date.now() - startedAt,
+      event: "request.completed",
+      metadata: {
+        routeId: route.kind === "action" || route.kind === "pipeline" ? route.id : route.kind === "automation" ? route.unit.id : route.reason,
+        routeKind: route.kind
+      },
+      source: "api.assistant_route",
+      status: "success"
+    });
     return NextResponse.json({ route });
   } catch (error) {
     if (error instanceof FamilyRequestContextError) {
       return NextResponse.json({ detail: error.message }, { status: error.status });
     }
+    await recordRuntimeEvent({
+      durationMs: Date.now() - startedAt,
+      error,
+      event: "request.completed",
+      source: "api.assistant_route",
+      status: "failed"
+    });
     return NextResponse.json({ detail: error instanceof Error ? error.message : "输入识别失败。" }, { status: 500 });
   }
 }

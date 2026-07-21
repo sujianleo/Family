@@ -354,6 +354,14 @@ export function routeAssistantInput(text: string, members: FamilyMember[], conte
     };
   }
 
+  if (isRuntimeStatusRequest(normalized)) {
+    return {
+      kind: "action",
+      id: "app.runtime.inspect",
+      parameters: { text: normalized }
+    };
+  }
+
   // “今天太热了”这类时间背景只是家常聊天。必须在任何提醒/分配
   // 兜底之前截住，避免仅凭“今天”弹出一个过期提醒。
   if (isAmbientConditionStatement(normalized)) {
@@ -854,6 +862,19 @@ export function describeAssistantRouteContract(text: string, members: FamilyMemb
       intent: ["dangerous"],
       reason: dangerousOperation.reason,
       summary: "危险操作已隔离。"
+    });
+  }
+
+  if (isRuntimeStatusRequest(normalized)) {
+    return makeRouteContract({
+      candidateActions: ["app.runtime.inspect"],
+      confidence: 0.98,
+      displayTarget: "inline_assistant",
+      displayType: "chat_reply",
+      intent: ["app_answer"],
+      reason: "本地规则识别只读运行诊断，并由 Action 按时间和模块缩小日志范围。",
+      requiresConfirmation: false,
+      summary: normalized
     });
   }
 
@@ -1613,7 +1634,16 @@ function extractDeepSummaryActionId(text: string): AutomationActionId | null {
 }
 
 export function isAppQuestionRequest(text: string) {
-  return classifyAppAnswerQuery(text) !== "unknown";
+  return isRuntimeStatusRequest(text) || classifyAppAnswerQuery(text) !== "unknown";
+}
+
+export function isRuntimeStatusRequest(text: string) {
+  const normalized = normalizeInput(text);
+  return (
+    /(?:app|应用|系统|服务|AI|助手).{0,14}(?:运行情况|运行状态|健康状态|是否正常|稳不稳定|稳定性|不好使|不能用|报错|错误|异常|日志|故障)/i.test(normalized) ||
+    /(?:最近|现在|当前|刚刚).{0,12}(?:哪里|有什么|有没有|是否)?(?:报错|错误|异常|失败|故障)/.test(normalized) ||
+    /(?:运行|系统|服务|错误|诊断)日志|runtime\s*(?:status|log|error|health)/i.test(normalized)
+  );
 }
 
 export function classifyAppAnswerQuery(text: string): AppAnswerQueryType {

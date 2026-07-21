@@ -2,6 +2,7 @@ import type { AutomationActionId, AutomationPipelineId } from "./automationRegis
 
 export type CapabilityModuleId =
   | "app.answer"
+  | "app.runtime"
   | "family.members"
   | "groups"
   | "meta"
@@ -36,6 +37,17 @@ export type CapabilityDefinition = {
 };
 
 export const capabilityRegistry: CapabilityDefinition[] = [
+  {
+    actions: ["app.runtime.inspect"],
+    batch: { enabled: false },
+    description: "按时间窗口、模块、级别和错误类别读取脱敏运行摘要，可由 scheduler 调用",
+    intents: ["app.runtime.inspect", "app.runtime.status", "app.runtime.errors"],
+    moduleId: "app.runtime",
+    moduleLabel: "运行诊断",
+    parameters: ["hours", "component", "level", "error_type", "limit", "text"],
+    pipelines: [],
+    status: "active"
+  },
   {
     actions: ["app.answer", "member.rename", "profile.describe"],
     batch: { enabled: false },

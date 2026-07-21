@@ -31,6 +31,7 @@ const schedulerIntervalMs = 15_000;
 const scheduledJobFile = "assistant-scheduled-jobs.json";
 const schedulableActionIds = new Set<AutomationActionId>([
   "assistant.suggest.next",
+  "app.runtime.inspect",
   "member.knowledge.followup",
   "background.organize.daily",
   "meta.summary.daily",

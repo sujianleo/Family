@@ -30,6 +30,11 @@ const actionToolMap: Array<{
     name: "family_app_chat"
   },
   {
+    actionId: "app.runtime.inspect",
+    description: "Read a small, redacted runtime summary filtered by hours, component, level, and error_type. Never returns chat bodies, secrets, or the full log.",
+    name: "family_app_runtime_inspect"
+  },
+  {
     actionId: "profile.describe",
     description: "Describe a family member profile. Input JSON may include text and member.",
     name: "family_profile_describe"

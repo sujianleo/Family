@@ -1,6 +1,7 @@
 export type AutomationActionId =
   | "app.answer"
   | "app.chat"
+  | "app.runtime.inspect"
   | "assistant.suggest.next"
   | "scheduler.job.create"
   | "scheduler.job.cancel"
@@ -116,6 +117,24 @@ export const automationActions: AutomationActionDefinition[] = [
     sideEffectLevel: "low",
     slashAliases: ["聊天", "闲聊", "chat"],
     parameters: {
+      text: "string"
+    }
+  },
+  {
+    id: "app.runtime.inspect",
+    unit: "action",
+    kind: "server",
+    label: "运行诊断",
+    description: "按时间、模块、级别和错误类别读取脱敏运行摘要，不读取聊天正文或整份日志",
+    requiresConfirmation: false,
+    sideEffectLevel: "none",
+    slashAliases: ["运行状态", "系统诊断", "最近报错", "runtime.inspect"],
+    parameters: {
+      component: "string",
+      error_type: "string",
+      hours: "number",
+      level: "string",
+      limit: "number",
       text: "string"
     }
   },

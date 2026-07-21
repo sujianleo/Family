@@ -1,5 +1,6 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { createServiceSupabaseClient } from "./supabaseServer";
+import { recordRuntimeEvent } from "./runtimeLog";
 
 export type ApiUsageStatus = "success" | "failed";
 
@@ -129,6 +130,21 @@ export async function recordApiUsage(input: ApiUsageInput) {
 
   await insertSupabaseApiUsage(row);
   await appendDebugJsonl(input.dataDir || defaultDataDir, "api-usage.jsonl", row);
+  await recordRuntimeEvent({
+    dataDir: input.dataDir || defaultDataDir,
+    durationMs: input.durationMs,
+    error: input.status === "failed" ? input.errorMessage || "AI request failed" : undefined,
+    event: "request.completed",
+    metadata: {
+      completionTokens,
+      modelName: input.modelName,
+      operation: input.operation,
+      promptTokens,
+      totalTokens
+    },
+    source: "ai.deepseek",
+    status: input.status
+  });
   return row;
 }
 

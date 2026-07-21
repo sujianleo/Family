@@ -381,7 +381,7 @@ function isSummaryAction(actionId: AutomationActionId) {
 }
 
 function isSafeReadOnlyAction(actionId: AutomationActionId) {
-  return ["app.chat", "app.answer", "profile.describe", "web.search.duckduckgo"].includes(actionId) || isSummaryAction(actionId);
+  return ["app.chat", "app.answer", "app.runtime.inspect", "profile.describe", "web.search.duckduckgo"].includes(actionId) || isSummaryAction(actionId);
 }
 
 function sameRouteContract(left: AssistantRouteContract, right: AssistantRouteContract) {
@@ -440,6 +440,9 @@ function preserveProtectedLocalRoute(localRoute: AssistantRoute, modelRoute: Ass
     return localRoute;
   }
   if (localRoute.kind === "action" && localRoute.id === "profile.describe") {
+    return localRoute;
+  }
+  if (localRoute.kind === "action" && localRoute.id === "app.runtime.inspect") {
     return localRoute;
   }
   if (

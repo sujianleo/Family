@@ -20,6 +20,7 @@ import {
 import { runAutomationAction as executeAutomationAction, runAutomationPipeline as executeAutomationPipeline, type AutomationActionResponse, type AutomationDisplayTarget, type AutomationDisplayType } from "@/lib/automations";
 import type { AutomationActionId, AutomationUnitDefinition } from "@/lib/automationRegistry";
 import { buildMentionOnlyGroupMemberIds, buildMentionOnlyGroupTitle, compileComposerIntent, haveSameGroupMemberIds } from "@/lib/composerIntent";
+import { clearComposerMentionTrigger, hasComposerMentionTrigger, insertComposerMention, isComposerMentionTriggerAtStart, removeComposerMention, withSelectedMentionLabels } from "@/lib/composerMention";
 import { formatChatTimestamp, shouldShowChatTimestamp } from "@/lib/chatMessageTime";
 import { isPollWakeKeyword, parseDecisionCandidate, type FamilyDecision } from "@/lib/familyDecisions";
 import { isEligibleJudgementMember, type GroupJudgement } from "@/lib/groupJudgement";
@@ -3400,9 +3401,11 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
     event.preventDefault();
     keepKeyboardDockFocused();
     const text = inputValue.trim();
+    const submittedMentionIds = [...selectedMentionIds];
+    const submittedMentionMembers = members.filter((member) => submittedMentionIds.includes(member.id));
+    const assistantInputText = withSelectedMentionLabels(text, submittedMentionMembers.map((member) => member.displayName));
 
     if (!text && selectedMentionIds.length > 0) {
-      const submittedMentionIds = [...selectedMentionIds];
       const selectedMembers = members.filter((member) => submittedMentionIds.includes(member.id) && member.relationshipRole !== "guest" && !member.householdRoles?.includes("assistant"));
       const memberIds = selectedMembers.map((member) => member.id);
       const title = buildMentionOnlyGroupTitle(selectedMembers.map((member) => member.displayName));
@@ -3433,7 +3436,7 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
       return;
     }
     // 先记录原始输入并创建整理中的结果卡，再开始任何路由或网络请求。
-    beginAssistantTurn(text);
+    beginAssistantTurn(assistantInputText);
     if (pendingKnowledgeInquiry?.status === "awaiting_user_input") {
       setInputValue("");
       await runGenericAssistantAction("member.knowledge.provide_input", text, {
@@ -3447,9 +3450,8 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
     composerSubmitSeqRef.current = submitSeq;
     composerDraftVersionRef.current += 1;
     const submittedDraftVersion = composerDraftVersionRef.current;
-    const submittedMentionIds = [...selectedMentionIds];
-    const initialFocusText = selectAssistantRoutingFocus(text);
-    const localPreflightRoute = routeAssistantInput(text, members, buildAssistantRouteContext());
+    const initialFocusText = selectAssistantRoutingFocus(assistantInputText);
+    const localPreflightRoute = routeAssistantInput(assistantInputText, members, buildAssistantRouteContext());
     const directContextualGroup = localPreflightRoute.kind === "action" && localPreflightRoute.id === "group.organize.contextual";
     const directFamilyQuestion = localPreflightRoute.kind === "action" && localPreflightRoute.id === "group.ask.family";
     const directLocalGroupAction = directContextualGroup || directFamilyQuestion;
@@ -3536,7 +3538,7 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
           reason: "assignment_or_search",
           suggestedAction: "task.create.input"
         }
-      : await requestAssistantRoute(text);
+      : await requestAssistantRoute(assistantInputText);
     if (directTimedTask || directMentionedTask) {
       assistantDialogueStateRef.current = advanceAssistantDialogueState(assistantDialogueStateRef.current, assistantRoute);
     }
@@ -3643,7 +3645,7 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
       displayTime: rawSuggestion.displayTime || reminder.displayTime,
       dueAt: rawSuggestion.dueAt || reminder.dueAt,
       recurrence: rawSuggestion.recurrence || reminder.recurrence,
-      sourceText: rawSuggestion.sourceText || text,
+      sourceText: rawSuggestion.sourceText || assistantInputText,
       taskTitle: normalizeTaskTitle(rawSuggestion.taskTitle || reminder.title || routedFocusText, rawSuggestion.displayTime || reminder.displayTime),
       requiresClarification: rawSuggestion.requiresClarification || reminder.requiresClarification,
       clarificationMessage: rawSuggestion.clarificationMessage || reminder.clarificationMessage
@@ -3768,7 +3770,7 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
   function handleInputChange(value: string) {
     composerDraftVersionRef.current += 1;
     setInputValue(value);
-    setMentionPickerOpen(value.includes("@"));
+    setMentionPickerOpen(hasComposerMentionTrigger(value));
     setSlashMenuOpen(hasComposerSlashTrigger(value) && !value.includes("@"));
     const shouldClearFeedback = automationFeedback !== null && automationFeedback.state !== "running";
     if (!shouldClearFeedback) {
@@ -3795,26 +3797,44 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
     window.requestAnimationFrame(() => baseInputRef.current?.focus({ preventScroll: true }));
   }
 
-  function removeMentionTriggerFromInput() {
-    setInputValue((value) => stripLatestMentionTrigger(value));
-  }
-
   function handleToggleMention(memberId: string, variant: "base" | "dock") {
+    const member = mentionableMembers.find((candidate) => candidate.id === memberId);
+    if (!member) return;
+    const removing = selectedMentionIds.includes(memberId);
+    const cursor = baseInputRef.current?.selectionStart ?? inputValue.length;
+    const sentenceStartSelection = isComposerMentionTriggerAtStart(inputValue, cursor) || (inputValue.trim().length === 0 && selectedMentionIds.length > 0);
+    const edit = removing
+      ? removeComposerMention(inputValue, member.displayName)
+      : sentenceStartSelection
+        ? clearComposerMentionTrigger(inputValue, cursor)
+        : insertComposerMention(inputValue, member.displayName, cursor);
     composerDraftVersionRef.current += 1;
     setSelectedMentionIds((ids) => toggleMemberId(ids, memberId));
-    removeMentionTriggerFromInput();
-    setMentionPickerOpen(true);
+    setInputValue(edit.value);
+    setMentionPickerOpen(sentenceStartSelection);
     setSlashMenuOpen(false);
     focusComposerInput(variant);
+    window.requestAnimationFrame(() => baseInputRef.current?.setSelectionRange(edit.caret, edit.caret));
   }
 
   function handleSelectAllMentions(variant: "base" | "dock") {
+    const selectingAll = selectedMentionIds.length !== mentionableMembers.length;
+    const cursor = baseInputRef.current?.selectionStart ?? inputValue.length;
+    const sentenceStartSelection = isComposerMentionTriggerAtStart(inputValue, cursor) || (inputValue.trim().length === 0 && selectedMentionIds.length > 0);
+    const edit = selectingAll
+      ? sentenceStartSelection
+        ? clearComposerMentionTrigger(inputValue, cursor)
+        : mentionableMembers
+          .filter((member) => !selectedMentionIds.includes(member.id))
+          .reduce((current, member) => insertComposerMention(current.value, member.displayName, current.caret), { caret: cursor, value: inputValue })
+      : mentionableMembers.reduce((current, member) => removeComposerMention(current.value, member.displayName), { caret: cursor, value: inputValue });
     composerDraftVersionRef.current += 1;
     setSelectedMentionIds((ids) => resolveAllMentionIds(mentionableMembers, ids));
-    removeMentionTriggerFromInput();
-    setMentionPickerOpen(true);
+    setInputValue(edit.value);
+    setMentionPickerOpen(sentenceStartSelection && selectingAll);
     setSlashMenuOpen(false);
     focusComposerInput(variant);
+    window.requestAnimationFrame(() => baseInputRef.current?.setSelectionRange(edit.caret, edit.caret));
   }
 
   function reopenMentionPicker(variant: "base" | "dock") {
@@ -8472,7 +8492,7 @@ function formatTaskCandidateReply(title: string, suggestion: AssignmentSuggestio
     : suggestion.displayTime
       ? `\n时间：${suggestion.displayTime}`
       : "";
-  return `待确认任务\n${title}${timeLine}\n负责人：${formatAssigneeNames(suggestion)}`;
+  return `待确认任务\n${title}${timeLine}\n负责人：${formatAssigneeMentions(suggestion)}`;
 }
 
 function shouldOfferComposerTaskCard(text: string) {
@@ -9514,5 +9534,10 @@ function chatMemberBubbleColor(member: FamilyMember, memberIds: string[]) {
 
 function formatAssigneeNames(suggestion: AssignmentSuggestion) {
   const names = suggestion.suggestedAssignees.map((assignee) => assignee.displayName);
+  return names.length > 0 ? names.join("、") : "家庭整理员";
+}
+
+function formatAssigneeMentions(suggestion: AssignmentSuggestion) {
+  const names = suggestion.suggestedAssignees.map((assignee) => `@${assignee.displayName}`);
   return names.length > 0 ? names.join("、") : "家庭整理员";
 }

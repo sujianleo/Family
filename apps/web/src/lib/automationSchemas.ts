@@ -38,6 +38,16 @@ export const automationActionSchemas: Record<AutomationActionId, AutomationActio
     input: baseInputSchema,
     output: baseOutputSchema
   },
+  "app.runtime.inspect": {
+    input: baseInputSchema.extend({
+      component: textSchema,
+      error_type: z.enum(["authentication", "invalid_response", "network", "push", "rate_limited", "storage", "timeout", "unknown"]).optional(),
+      hours: z.number().int().min(1).max(720).optional(),
+      level: z.enum(["info", "warn", "error"]).optional(),
+      limit: z.number().int().min(1).max(20).optional()
+    }),
+    output: baseOutputSchema
+  },
   "assistant.suggest.next": {
     input: baseInputSchema,
     output: baseOutputSchema
