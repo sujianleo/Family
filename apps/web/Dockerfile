@@ -1,9 +1,11 @@
-FROM node:22-alpine AS dependencies
+ARG NODE_IMAGE=node:22-alpine
+
+FROM ${NODE_IMAGE} AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:22-alpine AS builder
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 ARG NEXT_PUBLIC_FAMILY_APP_LAN_ADDRESS=""
 ARG NEXT_PUBLIC_FAMILY_APP_AUTH_REQUIRED="false"
@@ -24,7 +26,7 @@ COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-FROM node:22-alpine AS runner
+FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

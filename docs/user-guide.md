@@ -13,20 +13,20 @@
 适合先看看界面和基本记录能力：
 
 ```bash
-docker compose up --build -d
+docker compose -f docker-compose.app.yml up --build -d
 ```
 
-打开 [http://localhost:3000](http://localhost:3000)。默认 Compose 配置使用本地文件模式并关闭强制登录，只适合本机或可信局域网体验。
+打开 [http://localhost:3000](http://localhost:3000)。这份体验 Compose 配置使用本地文件模式并关闭强制登录，只适合本机或可信局域网体验。
 
 ### 1.2 正式家庭部署
 
-NAS 本地 Supabase 可以通过一条命令完成密钥、数据库和应用初始化：
+NAS 本地 Supabase 可以通过一个启动入口完成密钥、数据库和应用初始化：
 
 ```bash
-./scripts/setup-local-supabase.sh
+./start.sh
 ```
 
-同一局域网的设备打开脚本显示的地址。第一位使用者在页面创建家庭管理员；完整说明见[本地 Supabase 部署](self-hosted-supabase.md)。
+启动入口会自动执行内部的 Supabase 初始化脚本，不需要单独运行 `scripts/setup-local-supabase.sh`。饭米粒与 Supabase 会进入同一个 Compose 项目，后续可直接使用 `docker compose ps`、`docker compose stop` 和 `docker compose up -d` 统一管理。同一局域网的设备打开终端显示的地址；第一位使用者在页面创建家庭管理员；完整说明见[本地 Supabase 部署](self-hosted-supabase.md)。
 
 如果要让家人通过公网访问，至少需要：
 
@@ -59,7 +59,7 @@ NAS 本地 Supabase 可以通过一条命令完成密钥、数据库和应用初
 
 ![家庭成员邀请与协作流程](assets/family-collaboration-mobile.png)
 
-图表使用 Mermaid 维护，源文件见 [`family-collaboration-mobile.mmd`](family-collaboration-mobile.mmd)。PNG 使用纵向窄版布局，便于手机直接阅读。
+[Mermaid 源文件](family-collaboration-mobile.mmd)
 
 ### 2.3 安装成 PWA
 

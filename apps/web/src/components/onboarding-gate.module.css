@@ -42,14 +42,17 @@
 .welcome,
 .form {
   display: grid;
-  align-content: center;
   gap: 18px;
-  padding: 34px 0 24px;
 }
 
-.form { grid-row: 1 / -1; }
+.form {
+  align-content: start;
+  grid-row: 1 / -1;
+  padding: clamp(150px, 29dvh, 244px) 0 24px;
+}
 
 .welcome {
+  align-content: center;
   grid-row: 1 / -1;
   padding: 0;
 }
@@ -213,6 +216,6 @@
     padding: max(22px, env(safe-area-inset-top)) 22px max(18px, env(safe-area-inset-bottom));
     box-shadow: none;
   }
-  .form { padding-top: 32px; }
+  .form { padding-top: clamp(150px, 29dvh, 244px); }
   .welcome { padding: 0; }
 }

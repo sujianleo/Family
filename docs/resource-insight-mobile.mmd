@@ -1,0 +1,17 @@
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 24, "rankSpacing": 30}}}%%
+flowchart TB
+  UPLOAD["上传 PDF / 图片 / 文档"] --> ORIGINAL["保存原始文件"]
+  ORIGINAL --> EXTRACT["文本提取 / OCR / 解析"]
+  EXTRACT --> INSIGHT["生成结构化洞察"]
+  INSIGHT --> EVENT["记录解析事件与来源"]
+  EVENT --> CONTEXT["选择可信家庭证据"]
+  CONTEXT --> ANSWER["生成带来源的家庭问答"]
+  INSIGHT --> CANDIDATE["生成健康跟进任务候选"]
+  CANDIDATE --> CONFIRM["家庭成员确认后执行"]
+
+  classDef source fill:#F2F7F4,stroke:#7FA395,color:#20302A,stroke-width:2px;
+  classDef process fill:#FFF7EC,stroke:#C49A64,color:#4A3823,stroke-width:2px;
+  classDef result fill:#F5F2FF,stroke:#9584C5,color:#30264B,stroke-width:2px;
+  class UPLOAD,ORIGINAL,EXTRACT source;
+  class INSIGHT,EVENT,CONTEXT,CANDIDATE process;
+  class ANSWER,CONFIRM result;

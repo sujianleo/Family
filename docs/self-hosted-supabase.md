@@ -4,11 +4,13 @@
 
 ## 一键安装
 
-需要 Docker Compose、Git 与 OpenSSL。进入项目目录后运行：
+需要 Docker Compose 2.20 或更高版本、Git 与 OpenSSL。进入项目目录后运行唯一的启动入口：
 
 ```bash
-./scripts/setup-local-supabase.sh
+./start.sh
 ```
+
+`start.sh` 会自动执行内部的 `scripts/setup-local-supabase.sh`。安装者不需要再单独运行初始化脚本，也不需要先启动 Supabase。饭米粒与 Supabase 最终由根目录 `docker-compose.yml` 作为同一个 Compose 项目统一启动和管理。
 
 脚本会完成：
 
@@ -18,6 +20,20 @@
 4. 启动 Auth、Postgres、Storage 等本地服务；
 5. 自动创建饭米粒所需的表、权限和存储桶；
 6. 构建并启动饭米粒。
+
+首次初始化完成后，可以在项目目录统一查看、停止或重新启动全部容器：
+
+```bash
+docker compose ps
+docker compose stop
+docker compose up -d
+```
+
+如果 NAS 所在网络无法访问 Docker Hub，可以在首次启动时指定可用的 Node 基础镜像代理：
+
+```bash
+FAMILY_APP_NODE_IMAGE=docker.m.daocloud.io/library/node:22-alpine ./start.sh
+```
 
 运行产生的 Supabase 文件位于 `.runtime/local-supabase`，应用连接配置写入被 Git 忽略的 `.env`。密钥不会提交到仓库。
 
@@ -33,13 +49,13 @@
 手机、平板和电脑连接同一局域网后，可直接打开饭米粒地址。若自动识别了错误网卡：
 
 ```bash
-FAMILY_APP_HOST=192.168.1.20 ./scripts/setup-local-supabase.sh
+FAMILY_APP_HOST=192.168.1.20 ./start.sh
 ```
 
 端口也可以调整：
 
 ```bash
-FAMILY_APP_PORT=3100 SUPABASE_API_PORT=8100 FAMILY_APP_HOST=192.168.1.20 ./scripts/setup-local-supabase.sh
+FAMILY_APP_PORT=3100 SUPABASE_API_PORT=8100 FAMILY_APP_HOST=192.168.1.20 ./start.sh
 ```
 
 需要在 NAS 防火墙中允许相应端口，但不要把数据库端口直接暴露到公网。
@@ -63,15 +79,15 @@ FAMILY_APP_PORT=3100 SUPABASE_API_PORT=8100 FAMILY_APP_HOST=192.168.1.20 ./scrip
 
 ![局域网与公网自动切换拓扑](assets/local-supabase-mobile.png)
 
-图表使用 Mermaid 维护，源文件见 [`local-supabase-mobile.mmd`](local-supabase-mobile.mmd)。PNG 使用纵向窄版布局，便于手机直接阅读。
+[Mermaid 源文件](local-supabase-mobile.mmd)
 
-公网必须为应用与 Supabase API 都配置 HTTPS。运行脚本前可以提供两条公网地址：
+公网必须为应用与 Supabase API 都配置 HTTPS。启动前可以提供两条公网地址：
 
 ```bash
 FAMILY_APP_PUBLIC_URL=https://family.example.com \
 FAMILY_APP_SUPABASE_PUBLIC_URL=https://data.example.com \
 FAMILY_APP_HOST=192.168.1.20 \
-./scripts/setup-local-supabase.sh
+./start.sh
 ```
 
 公网反向代理应分别转发到饭米粒端口和 Supabase API 端口。只配置局域网时，应用不会自行把数据发送到托管 Supabase。
@@ -82,11 +98,11 @@ FAMILY_APP_HOST=192.168.1.20 \
 
 DeepSeek 的“测试 API”会执行真实的结构化请求。页面没有填写 Key 时，测试会使用服务端配置；两处都没有 Key 时会返回失败提示。任何服务端 Key 都不要写入 `NEXT_PUBLIC_*` 变量。
 
-## 已验证的家庭协作流程
-
-下面的纵向图适合在手机上阅读。Mermaid 源文件见 [`family-collaboration-mobile.mmd`](family-collaboration-mobile.mmd)。
+## 家庭协作流程
 
 ![家庭成员邀请与协作流程](assets/family-collaboration-mobile.png)
+
+[Mermaid 源文件](family-collaboration-mobile.mmd)
 
 ## 备份
 

@@ -3939,11 +3939,11 @@ html:has(.settings-layer.dragging, .notification-backdrop.dragging) .app-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 5px 10px;
+  gap: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 10px 12px;
-  background: var(--surface-tint);
+  border-radius: 15px;
+  padding: 11px 12px;
+  background: var(--surface);
 }
 
 .notification-settings-card > div {
@@ -3969,6 +3969,11 @@ html:has(.settings-layer.dragging, .notification-backdrop.dragging) .app-shell {
 
 .notification-settings-message {
   grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--accent-strong) !important;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .avatar-grid {
