@@ -7,7 +7,7 @@ import { FAMILY_CARE_SYSTEM_PRINCIPLE } from "../familyCarePrinciple";
 import type { FamilyMember } from "../types";
 import { createAutomationRun, createRawEvent, createSummary } from "./eventStore";
 import type { DeepSummaryJson } from "./deepSummary";
-import { getFastModelName, invokeDeepSeekJson } from "./langchainAi";
+import { getDeepModelName, invokeDeepSeekDeepJson } from "./langchainAi";
 import { resolveCareMemberRoles } from "./careCandidateResolver";
 import { readFamilyMembersWithOverrides } from "./memberOverrides";
 import { createServiceSupabaseClient } from "./supabaseServer";
@@ -244,7 +244,7 @@ export async function runBackgroundOrganization(
       dataDir: input.dataDir,
       endTime: input.endTime,
       familyId: input.familyId,
-      modelName: aiSummary ? getFastModelName() : "deterministic",
+      modelName: aiSummary ? getDeepModelName() : "deterministic",
       promptVersion: BACKGROUND_ORGANIZER_PROMPT_VERSION,
       scope: "family",
       sourceEventIds: idsByType(source.compactItems, "raw_event"),
@@ -269,7 +269,7 @@ export async function runBackgroundOrganization(
       dataDir: input.dataDir,
       familyId: input.familyId,
       input: { jobKey, startTime: input.startTime, endTime: input.endTime },
-      modelName: aiSummary ? getFastModelName() : "deterministic",
+      modelName: aiSummary ? getDeepModelName() : "deterministic",
       output: {
         candidateCounts: organization.candidateCounts,
         healthSignalCount: organization.healthSignals.length,
@@ -590,7 +590,7 @@ ${JSON.stringify(selectOrganizationSourceItems(source.compactItems))}
 {"memoryCandidates":[{"confidence":0.0,"content":"","requiresConfirmation":true,"sourceIds":[],"type":"preference|habit|family_fact|repeated_pattern|rule"}],"memberAdvice":[{"memberId":"","title":"","suggestion":"","reason":"","sourceIds":[]}]}`
     }
   ];
-  const result = await invokeDeepSeekJson(messages, {
+  const result = await invokeDeepSeekDeepJson(messages, {
     dataDir: input.dataDir,
     familyId: input.familyId,
     maxTokens: 1400,

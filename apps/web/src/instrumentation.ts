@@ -9,6 +9,8 @@ export async function register() {
   });
   const { startLocalNotificationDispatcher } = await import("@/lib/server/localNotificationDispatcher");
   startLocalNotificationDispatcher();
+  const { startInsightScheduler } = await import("@/lib/server/insight/insightScheduler");
+  startInsightScheduler();
   const { startAssistantScheduler } = await import("@/lib/server/assistantScheduler");
   const { runAutomationAction } = await import("@/lib/server/automationRunner");
   startAssistantScheduler(async (actionId, parameters) => {
