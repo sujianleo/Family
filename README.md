@@ -1,5 +1,5 @@
 <h3 align="center">
-  <img src="apps/web/public/family-logo-v2.png" alt="我爱饭米粒" width="120" />
+  <img src="apps/web/public/family-logo-v2.png" alt="Family" width="120" />
 </h3>
 
 <p align="center">
@@ -10,55 +10,55 @@
 
 ---
 
-# 我爱饭米粒
+# Family
 
-**用心记录，守护家庭。** 把家事、健康资料和家庭协作，安稳地放回时间里。
+**用心记录，守护家庭。** Record with care, protect your family, and keep household tasks, health documents, and family coordination safely organized over time.
 
-家里不缺一个新群，缺的是有人把事情记住、接住，再一路跟到底。
+A family rarely needs another group chat. It needs a place that remembers what matters, helps someone take responsibility, and follows through.
 
 ---
 
-## 它能帮家里做什么？
+## What can it do for your family?
 
-- **健康资料**：收好报告和复查安排，需要时一眼找到。
-- **家庭协作**：分清任务和提醒事项，少在群里来回翻找。
-- **长期记录**：今天顺手记下一笔，明天照样找得到。
-- **家人做主**：AI 帮忙整理和建议，决定始终归家人。
+- **Health records:** Keep reports and follow-up plans together, ready when you need them.
+- **Family coordination:** Assign tasks and reminders without digging through endless chat history.
+- **Long-term memory:** Capture something today and still find it tomorrow—or years from now.
+- **People stay in charge:** AI can organize and suggest; the family always makes the decision.
 
-## 一件家事，怎样被好好接住？
+## How does a household task get handled properly?
 
-1. **记下来**：任务、语音、文件，都可以顺手放进来。
+1. **Capture it:** Add a task, voice note, or file whenever it comes to mind.
 
-2. **排清楚**：时间、人物、事项，自动回到时间线上。
+2. **Put it in order:** Time, people, and context fall naturally into the family timeline.
 
-3. **找重点**：AI 检索、归纳、提示，但不会替你决定。
+3. **Find what matters:** AI retrieves, summarizes, and highlights without making decisions for you.
 
-4. **再确认**：重要动作先给家人看，点头以后才执行。
+4. **Confirm first:** Important actions are shown to the family before anything happens.
 
-5. **跟到底**：提醒、任务、反馈，做完以后仍有记录。
+5. **Follow through:** Reminders, tasks, and feedback remain part of the record after the work is done.
 
 ## Quick Start
 
-### Docker Compose（完整家庭部署）
+### Docker Compose: full household deployment
 
-准备好 Docker Compose 2.20+、Git 和 OpenSSL。进入项目目录，第一次只运行：
+Install Docker Compose 2.20+, Git, and OpenSSL. From the project directory, run this once:
 
 ```bash
 ./start.sh
 ```
 
-这一个入口会把准备工作全部做完：
+This single command handles the setup:
 
-- **找地址**：识别 NAS IP，生成局域网访问链接。
-- **配密钥**：生成独立密钥，连接参数也会自动写好。
-- **装服务**：下载服务组件，准备数据和文件存储。
-- **开饭米粒**：构建应用、启动容器，再创建数据表。
+- **Find the address:** Detect the NAS IP and create a local-network URL.
+- **Prepare secrets:** Generate independent secrets and write the connection settings.
+- **Install services:** Download the required components and prepare data and file storage.
+- **Start Family:** Build the app, launch the containers, and create the database tables.
 
-> 第一次别急着运行 `docker compose up`。`./start.sh` 会先生成 Supabase 配置，再交给 Compose 启动。
+> On the first run, do not jump straight to `docker compose up`. `./start.sh` generates the Supabase configuration before handing control to Compose.
 
-饭米粒、PostgreSQL、Auth、API 和 Storage 会进入同一个 Compose 项目。它们各自分工，但可以一起启动、一起停止。
+Family, PostgreSQL, Auth, API, and Storage run in one Compose project. Each has a separate job, but they start and stop together.
 
-第一次完成后，日常只需要这三条：
+After the first setup, these three commands cover everyday operation:
 
 ```bash
 docker compose up -d
@@ -66,49 +66,49 @@ docker compose ps
 docker compose stop
 ```
 
-打开终端给出的地址，创建第一位家庭管理员。之后邀请家人，管理员确认后即可共享任务、群聊、反馈和资料。
+Open the URL printed in the terminal and create the first family administrator. Invite relatives afterward; once the administrator approves them, the family can share tasks, group chats, feedback, and documents.
 
-NAS 有多个网卡时，可以直接指定地址：
+If the NAS has multiple network interfaces, specify the address explicitly:
 
 ```bash
 FAMILY_APP_HOST=192.168.1.20 ./start.sh
 ```
 
-连接方式也尽量省心：
+Networking is designed to stay out of the way:
 
-- **局域网访问**：同一网络内，打开链接立刻就能用。
-- **公网访问**：地址可以留空，需要时再配 HTTPS。
-- **自动切换**：检测可用线路，自动选择更快一条。
-- **手动修改**：默认地址自动获取，页面里随时能改。
+- **Local access:** Open the link from any device on the same network.
+- **Internet access:** Leave the public address empty and add HTTPS later when needed.
+- **Automatic selection:** Detect available routes and choose the faster one.
+- **Manual control:** Accept the detected default or change it in the app at any time.
 
-完整配置与备份方法见[本地 Supabase 部署](docs/self-hosted-supabase.md)。
+See [Self-hosted Supabase](docs/self-hosted-supabase.md) for complete configuration and backup instructions.
 
-### 只想先看看
+### Just want to take a look?
 
-不启用 Supabase、登录和家庭成员，直接启动界面体验版：
+Launch the interface-only demo without Supabase, sign-in, or family membership:
 
 ```bash
 docker compose -f docker-compose.app.yml up --build -d
 ```
 
-打开 [http://localhost:3000](http://localhost:3000)。数据只写本地文件，适合体验，不适合直接放到公网。
+Open [http://localhost:3000](http://localhost:3000). Data is written only to local files. This mode is great for a quick tour, but it should not be exposed directly to the internet.
 
-## AI 怎么选？
+## Which AI should you use?
 
-- **DeepSeek**：价格友好，适合日常整理和问答。
-- **OpenAI**：能力全面，目前主要用于语音转写。
-- **暂时不接**：记录、任务、邀请和同步全部照常能用。
+- **DeepSeek:** Budget-friendly and well suited to everyday organization and questions.
+- **OpenAI:** A broad capability set, currently used mainly for speech transcription.
+- **No AI for now:** Records, tasks, invitations, and synchronization still work normally.
 
-AI 负责理解和建议，饭米粒负责规则与安全，最后决定始终留给家人。
+AI handles understanding and suggestions. Family handles rules and safety. The final decision always belongs to the people involved.
 
-进入 **设置 → AI**，可选择 DeepSeek、OpenAI、通义千问、Kimi、智谱、混元、Gemini、Claude 或自定义服务。“测试 API”会发起真实请求，不会假装连接成功。
+Open **Settings → AI** to choose DeepSeek, OpenAI, Qwen, Kimi, Zhipu, Hunyuan, Gemini, Claude, or a custom provider. **Test API** sends a real request—no pretend green lights.
 
-## 文档
+## Documentation
 
-[使用手册](docs/user-guide.md) · [本地 Supabase 部署](docs/self-hosted-supabase.md) · [系统架构](docs/system-architecture.md) · [能力矩阵](docs/capability-matrix.md)
+[User Guide](docs/user-guide.md) · [Self-hosted Supabase](docs/self-hosted-supabase.md) · [System Architecture](docs/system-architecture.md) · [Capability Matrix](docs/capability-matrix.md)
 
 ---
 
-> 欢迎提建议。饭米粒还小，我们慢慢把它养大。
+> Feedback is always welcome. Family is still young; let us raise it together.
 
-家庭资料很私人：真实数据、密钥、数据库和运行文件请勿提交。
+Family data is deeply private. Never commit real records, secrets, databases, or runtime files.
