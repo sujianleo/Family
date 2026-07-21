@@ -81,12 +81,38 @@ ensure_secret() {
   esac
 }
 
+default_db_config_volume_name() {
+  compose_project=${COMPOSE_PROJECT_NAME:-$(basename "$PROJECT_ROOT")}
+  normalized_project=$(printf '%s' "$compose_project" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/-/g; s/^[^a-z0-9]*//')
+  printf '%s_db-config' "${normalized_project:-family-app}"
+}
+
 prepare_supabase_compose_for_include() {
   compose_file=$1
   temporary="${compose_file}.tmp.$$"
   awk '
     /^name:[[:space:]]*supabase[[:space:]]*$/ { next }
+    /^[[:space:]]+# This container name looks inconsistent/ {
+      print "    # Realtime derives its tenant from this hostname; Kong also routes to it."
+      next
+    }
+    /^[[:space:]]+container_name:[[:space:]]*realtime-dev\.supabase-realtime[[:space:]]*$/ {
+      print "    hostname: realtime-dev.supabase-realtime"
+      print "    networks:"
+      print "      default:"
+      print "        aliases:"
+      print "          - realtime-dev.supabase-realtime"
+      next
+    }
     /^[[:space:]]+container_name:[[:space:]]*/ { next }
+    /^  db-config:[[:space:]]*$/ {
+      print
+      print "    name: ${SUPABASE_DB_CONFIG_VOLUME}"
+      in_db_config = 1
+      next
+    }
+    in_db_config && /^    name:[[:space:]]*/ { next }
+    in_db_config && !/^    / { in_db_config = 0 }
     { print }
   ' "$compose_file" > "$temporary"
   mv "$temporary" "$compose_file"
@@ -158,14 +184,38 @@ ensure_secret "$APP_ENV" GUEST_CHAT_CODE_SECRET
 
 printf '正在启动饭米粒与本地 Supabase（首次会下载并构建镜像）…\n'
 # Older releases started Supabase as a separate Compose project. Removing only
-# those containers keeps the bind-mounted database and uploaded files intact.
+# those containers keeps the bind-mounted data and the pgsodium key volume intact.
+legacy_db_config_volume=""
 legacy_container_id=$(docker ps -aq --filter label=com.docker.compose.project=supabase | head -n 1)
 if [ -n "$legacy_container_id" ]; then
   legacy_working_dir=$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' "$legacy_container_id" 2>/dev/null || true)
   if [ "$legacy_working_dir" = "$SUPABASE_DOCKER" ]; then
+    legacy_db_config_volume="supabase_db-config"
     (cd "$SUPABASE_DOCKER" && docker compose -p supabase down) >/dev/null 2>&1 || true
   fi
 fi
+
+DEFAULT_DB_CONFIG_VOLUME=$(default_db_config_volume_name)
+DB_CONFIG_VOLUME=$(read_env "$SUPABASE_DOCKER/.env" SUPABASE_DB_CONFIG_VOLUME)
+if [ -z "$DB_CONFIG_VOLUME" ]; then
+  if [ -n "$legacy_db_config_volume" ]; then
+    DB_CONFIG_VOLUME=$legacy_db_config_volume
+  elif docker volume inspect "$DEFAULT_DB_CONFIG_VOLUME" >/dev/null 2>&1; then
+    DB_CONFIG_VOLUME=$DEFAULT_DB_CONFIG_VOLUME
+  elif [ -d "$SUPABASE_DOCKER/volumes/db/data" ] && docker volume inspect supabase_db-config >/dev/null 2>&1; then
+    # The old stack may have been stopped with `down`, leaving only its bind
+    # mounted database and the pgsodium key volume behind.
+    DB_CONFIG_VOLUME="supabase_db-config"
+  else
+    DB_CONFIG_VOLUME=$DEFAULT_DB_CONFIG_VOLUME
+  fi
+fi
+set_env "$SUPABASE_DOCKER/.env" SUPABASE_DB_CONFIG_VOLUME "$DB_CONFIG_VOLUME"
+set_env "$APP_ENV" SUPABASE_DB_CONFIG_VOLUME "$DB_CONFIG_VOLUME"
+
+# Start from the pinned upstream file on every run so the transformation stays
+# deterministic even after an earlier release modified the generated Compose.
+git -C "$RUNTIME_ROOT" checkout -q -- docker/docker-compose.yml
 prepare_supabase_compose_for_include "$SUPABASE_DOCKER/docker-compose.yml"
 
 attempt=1
