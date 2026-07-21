@@ -1,19 +1,19 @@
-%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 24, "rankSpacing": 30}}}%%
+%%{init: {"theme": "base", "htmlLabels": false, "themeVariables": {"fontFamily": "Arial, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 24, "rankSpacing": 30, "htmlLabels": false}}}%%
 flowchart TB
-  INPUT["用户输入文字或附件"] --> ROUTE["本地规则与白名单"]
-  ROUTE --> DECIDE{"本地能否确定"}
-  DECIDE --> LOCAL["本地确定"]
-  DECIDE --> MODEL["需要增强<br/>受约束模型路由"]
-  LOCAL --> CANDIDATE["结构化动作候选"]
+  INPUT["User text<br/>or attachment"] --> ROUTE["Local rules<br/>and allowlist"]
+  ROUTE --> DECIDE{"Local decision?"}
+  DECIDE --> LOCAL["Local route"]
+  DECIDE --> MODEL["Model enhancement<br/>Constrained route"]
+  LOCAL --> CANDIDATE["Action candidate"]
   MODEL --> CANDIDATE
-  CANDIDATE --> EVENT["记录原始事件与解释"]
-  EVENT --> GATE{"是否需要确认"}
-  GATE --> DIRECT["无需确认"]
-  GATE --> CONFIRM["需要确认<br/>原始参数与签名令牌"]
-  DIRECT --> RUN["执行白名单动作"]
+  CANDIDATE --> EVENT["Record raw event<br/>and interpretation"]
+  EVENT --> GATE{"Confirmation?"}
+  GATE --> DIRECT["No confirmation"]
+  GATE --> CONFIRM["Confirm<br/>Parameters + signed token"]
+  DIRECT --> RUN["Run allowlisted<br/>action"]
   CONFIRM --> RUN
-  RUN --> DATA["写入业务数据与执行记录"]
-  DATA --> RESULT["返回结构化界面结果"]
+  RUN --> DATA["Write data<br/>and execution record"]
+  DATA --> RESULT["Structured UI<br/>result"]
 
   classDef input fill:#F2F7F4,stroke:#7FA395,color:#20302A,stroke-width:2px;
   classDef control fill:#FFF7EC,stroke:#C49A64,color:#4A3823,stroke-width:2px;

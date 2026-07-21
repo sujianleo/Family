@@ -1,13 +1,13 @@
-%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 24, "rankSpacing": 30}}}%%
+%%{init: {"theme": "base", "htmlLabels": false, "themeVariables": {"fontFamily": "Arial, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 24, "rankSpacing": 30, "htmlLabels": false}}}%%
 flowchart TB
-  EVENT["任务 / 群聊 / 家庭事件"] --> STORE["通知规则与偏好"]
-  STORE --> QUEUE["通知队列"]
-  DEVICE["浏览器授权与订阅"] --> ENDPOINT["设备订阅端点"]
-  QUEUE --> DISPATCH["本地派发器 / Edge Function"]
+  EVENT["Task · chat<br/>family event"] --> STORE["Notification rules<br/>and preferences"]
+  STORE --> QUEUE["Notification queue"]
+  DEVICE["Browser permission<br/>and subscription"] --> ENDPOINT["Device endpoint"]
+  QUEUE --> DISPATCH["Local dispatcher<br/>or Edge Function"]
   ENDPOINT --> DISPATCH
-  DISPATCH --> PUSH["Web 推送"]
-  PUSH --> SW["后台服务"]
-  SW --> UI["系统通知与深链接"]
+  DISPATCH --> PUSH["Web Push"]
+  PUSH --> SW["Service worker"]
+  SW --> UI["System notification<br/>and deep link"]
 
   classDef event fill:#F2F7F4,stroke:#7FA395,color:#20302A,stroke-width:2px;
   classDef process fill:#FFF7EC,stroke:#C49A64,color:#4A3823,stroke-width:2px;

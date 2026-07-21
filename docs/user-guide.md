@@ -1,321 +1,323 @@
-# 我爱饭米粒使用手册
+# Family User Guide
 
-> Slogan：**用心记录 守护家庭**
+> Slogan: **Record with care. Protect your family.**
 
-我爱饭米粒不是微信平替，也不是只会陪聊的机器人。它首先是一个家庭记录与协作工具：任务、群聊、资料和提醒各归各位；AI 在这些可靠记录之上帮助理解、整理、总结和提出建议。
+Family is not a WeChat replacement and it is not a chatbot that only makes conversation. It is first and foremost a family record and coordination tool: tasks, group chats, resources, and reminders each have a proper home. AI works on top of those reliable records to help understand, organize, summarize, and suggest.
 
-本手册按“第一次打开 → 日常记录 → AI 增强 → 家庭管理 → 部署维护”的顺序介绍。标有“实验性”或“需配置”的能力，请先阅读对应限制。
+This guide follows the natural path from first launch to everyday capture, AI features, family administration, and deployment maintenance. Read the stated limits before using anything marked experimental or configuration-dependent.
 
-## 1. 开始前先选使用方式
+## 1. Choose how you want to run Family
 
-### 1.1 本机体验
+### 1.1 Local demo
 
-适合先看看界面和基本记录能力：
+Use the interface and basic record features without setting up a full family service:
 
 ```bash
 docker compose -f docker-compose.app.yml up --build -d
 ```
 
-打开 [http://localhost:3000](http://localhost:3000)。这份体验 Compose 配置使用本地文件模式并关闭强制登录，只适合本机或可信局域网体验。
+Open [http://localhost:3000](http://localhost:3000). This Compose profile uses local-file storage and disables mandatory sign-in. Use it only on the host machine or a trusted local network.
 
-### 1.2 正式家庭部署
+### 1.2 Full household deployment
 
-NAS 本地 Supabase 可以通过一个启动入口完成密钥、数据库和应用初始化：
+A local Supabase deployment on a NAS can initialize secrets, the database, and the application through one command:
 
 ```bash
 ./start.sh
 ```
 
-启动入口会自动执行内部的 Supabase 初始化脚本，不需要单独运行 `scripts/setup-local-supabase.sh`。饭米粒与 Supabase 会进入同一个 Compose 项目，后续可直接使用 `docker compose ps`、`docker compose stop` 和 `docker compose up -d` 统一管理。同一局域网的设备打开终端显示的地址；第一位使用者在页面创建家庭管理员；完整说明见[本地 Supabase 部署](self-hosted-supabase.md)。
+The entry point runs the internal Supabase setup automatically; do not run `scripts/setup-local-supabase.sh` separately. Family and Supabase join the same Compose project, so later you can manage them with `docker compose ps`, `docker compose stop`, and `docker compose up -d`.
 
-如果要让家人通过公网访问，至少需要：
+Devices on the same network can open the address printed in the terminal. The first user creates the family administrator. See [Self-hosted Supabase](self-hosted-supabase.md) for the complete procedure.
 
-- 最终 HTTPS 域名；
-- 登录与家庭成员身份校验；
-- 全新的会话、邀请、访客和确认签名 Secret；
-- 持久化的 `data/` 目录或 Supabase；
-- 可选的模型、语音转写和 Web Push 配置；
-- 可恢复的备份。
+Public access requires at least:
 
-不要把默认免登录 Compose 配置原样暴露到公网。
+- a final HTTPS domain;
+- sign-in and family-membership checks;
+- fresh session, invitation, guest, and confirmation-signing secrets;
+- a persistent `data/` directory or Supabase deployment;
+- optional model, transcription, and Web Push configuration;
+- a tested backup and restore path.
 
-## 2. 第一次进入
+Never expose the no-auth demo configuration directly to the internet.
 
-### 2.1 本地体验模式
+## 2. First launch
 
-新浏览器会先显示极简引导页：选择“黑白配”或“多巴胺”，确认访问地址，并按需连接 AI。完成后进入家庭主页。这里的数据用于体验，不应混入真实家庭隐私。
+### 2.1 Demo mode
 
-### 2.2 已启用认证的部署
+A new browser starts with a minimal setup flow. Choose the monochrome or dopamine theme, confirm access addresses, and optionally connect an AI provider. Demo data is for evaluation only; do not mix it with real family information.
 
-正式部署由管理员创建或邀请家庭成员。家庭邀请的一般流程是：
+### 2.2 Authenticated deployment
 
-1. 管理员生成家庭邀请；
-2. 对方打开链接并输入邀请人提供的 4 位验证码；
-3. 对方注册或登录自己的账号；
-4. 加入申请发给家庭管理员；
-5. 管理员确认后，账号才会绑定家庭成员身份。
+In a full deployment, an administrator creates or invites family members:
 
-邀请链接只用于找到邀请，不等于登录凭证。家庭权限也不会因为“知道链接”而自动获得。
+1. The administrator creates an invitation.
+2. The recipient opens the link and enters the four-digit code supplied by the inviter.
+3. The recipient registers or signs in with a personal account.
+4. A membership request is sent to the family administrator.
+5. The account is linked to the family only after administrator approval.
 
-![家庭成员邀请与协作流程](assets/family-collaboration-mobile.png)
+An invitation link locates an invitation; it is not a login credential. Knowing the link never grants family permissions automatically.
 
-[Mermaid 源文件](family-collaboration-mobile.mmd)
+![Family invitation and collaboration flow](assets/family-collaboration-mobile.png)
 
-### 2.3 安装成 PWA
+[Mermaid source](family-collaboration-mobile.mmd)
 
-安装后可以像普通 App 一样从主屏幕打开。
+### 2.3 Install the PWA
 
-- **iPhone / iPad**：引导页会显示 Safari 的“分享 → 添加到主屏幕”。
-- **Android**：引导页会显示 Chrome 的“菜单 → 安装应用”或“添加到主屏幕”。
-- **桌面浏览器**：使用地址栏或浏览器菜单中的安装入口。
-- 安装入口只会在浏览器、HTTPS 和系统条件满足时出现。
-- 这一步可以跳过，不影响继续进入家庭空间。
+Once installed, Family opens from the home screen like a normal app.
 
-## 3. 认识主页
+- **iPhone / iPad:** Use Safari's **Share → Add to Home Screen**.
+- **Android:** Use Chrome's **Menu → Install app** or **Add to Home screen**.
+- **Desktop:** Use the install action in the address bar or browser menu.
+- The install option appears only when browser, HTTPS, and operating-system requirements are met.
+- Installation is optional and can be skipped.
 
-主页由四个核心区域组成：
+## 3. Understand the home page
 
-| 区域 | 用来放什么 | 不应该放什么 |
+The home page has four core areas:
+
+| Area | What belongs here | What does not belong here |
 | --- | --- | --- |
-| 任务 | 待办、指派、时间、提醒和完成状态 | 临时问答、天气和普通聊天 |
-| 群组 | 家庭讨论、附件、投票和临时访客 | 全家庭隐私资料的公开入口 |
-| 资料 | 图片、视频、文档、语音和长期信息 | 没有确认的一次性推测 |
-| 输入框 | 快速记录、自然语言命令和 AI 问答 | 取代所有正式页面的无限聊天记录 |
+| Tasks | Todos, assignments, times, reminders, and completion state | Temporary Q&A, weather, and casual chat |
+| Groups | Family discussion, attachments, polls, and temporary guests | A public entrance to private whole-family data |
+| Resources | Images, video, documents, voice, and long-lived information | Unconfirmed one-off speculation |
+| Composer | Quick capture, natural-language commands, and AI questions | An endless chat history that replaces every real page |
 
-输入框是统一入口，但不是整个产品。临时 AI 回答显示在输入框附近；真正的任务、资料和群消息进入各自区域。
+The composer is a shared entry point, not the entire product. Temporary AI replies stay near the composer. Real tasks, resources, and group messages go to their dedicated areas.
 
-## 4. 最常用的操作：直接说人话
+## 4. Start by speaking naturally
 
-可以从这些例子开始：
+Try examples like these:
 
-| 你可以输入 | 应用会怎么处理 |
+| Input | Expected behavior |
 | --- | --- |
-| `明天 9 点提醒我买药` | 识别时间并生成任务候选，确认后创建 |
-| `把周六大扫除分给妈妈` | 解析成员和事项，生成指派任务候选 |
-| `周末谁愿意擦窗户` | 生成开放报名任务候选 |
-| `创建一个周末聚餐群` | 询问或识别成员，生成群聊 |
-| `今天陪爸爸复查，医生让一个月后再看` | 保存原始记录，并提出可确认的跟进候选 |
-| `昨天家里发生了什么` | 查询已保存的家庭记录并生成简要回答 |
-| `给我一份本周家庭总结` | 调用周总结能力；需要相应模型和数据配置 |
+| `Remind me to buy medicine tomorrow at 9` | Recognizes the time and creates a task candidate for confirmation |
+| `Assign Saturday cleaning to Mom` | Parses the member and work, then creates an assignment candidate |
+| `Who can clean the windows this weekend?` | Creates an open-volunteer task candidate |
+| `Create a weekend dinner group` | Identifies or asks for members, then creates a group chat |
+| `Dad had a follow-up today; the doctor wants another visit in a month` | Saves the original record and suggests a confirmable follow-up |
+| `What happened at home yesterday?` | Searches saved family records and returns a concise answer |
+| `Give me a family summary for this week` | Runs the weekly summary capability when data and model configuration are available |
 
-如果系统不确定你的意思，会先澄清或显示候选卡，不应擅自把所有输入都变成任务。
+When the system is unsure, it asks a question or presents a candidate card. It should not silently turn every sentence into a task.
 
-## 5. 家庭任务
+## 5. Family tasks
 
-### 5.1 创建任务
+### 5.1 Create a task
 
-你可以直接输入事项，也可以补充：
+Enter the task directly and optionally include:
 
-- 时间：`明天 9 点`、`周六上午`；
-- 成员：`给爸爸`、`分给妈妈`；
-- 类型：个人待办、直接指派、开放报名、多选或填写；
-- 提醒：到期时间和可用的提前提醒。
+- a time such as `tomorrow at 9` or `Saturday morning`;
+- a member such as `for Dad` or `assign to Mom`;
+- a task type: personal todo, direct assignment, open volunteer, multiple choice, or text response;
+- a due time and any supported advance reminder.
 
-AI 只负责解析和生成候选。真正创建前会显示确认信息，确认后才写入任务列表。
+AI parses the request and creates a candidate. The task is written only after confirmation.
 
-### 5.2 查看和完成
+### 5.2 Review and complete
 
-- 打开任务可以查看成员、时间、来源和相关讨论；
-- 按界面操作更新完成状态；
-- 到期任务会进入提醒流；
-- 删除、归档或批量操作属于高影响操作，应经过明确确认。
+- Open a task to see members, time, source, and related discussion.
+- Use the task controls to update completion state.
+- Due tasks enter the reminder flow.
+- Deletion, archiving, and bulk operations are high-impact actions and require explicit confirmation.
 
-### 5.3 从家庭决定生成任务
+### 5.3 Create tasks from family decisions
 
-投票或“评评理”结束后，可以选择采纳结果并创建任务。若没有唯一多数，发起人需要先选择最终方案。
+After a poll or family judgment closes, the family can adopt the result and create a task. If there is no unique majority, the organizer must choose the final option first.
 
-## 6. 家庭群聊
+## 6. Family group chats
 
-### 6.1 创建群聊
+### 6.1 Create a group
 
-可以在主页输入框中提及家庭成员，或直接输入“创建群聊”。群聊支持文字、附件、本地表情和成员讨论。
+Mention family members in the home composer or ask Family to create a group chat. Groups support text, attachments, local emoji, and member discussion.
 
-群聊不是为了替代微信，而是为了让讨论结果能和任务、资料、投票以及家庭时间线关联。
+Group chat is not intended to replace WeChat. Its purpose is to connect discussion outcomes to tasks, resources, polls, and the family timeline.
 
-### 6.2 把聊天整理成资料
+### 6.2 Save chat content as a resource
 
-当聊天里出现地址、行程、文件或长期信息时，可以通过保存资料的流程整理入库。长期内容写入前需要确认，避免一句玩笑被当成永久家庭事实。
+Addresses, itineraries, files, and durable information from a chat can be organized into the resource library. Long-lived content requires confirmation before storage, so a joke does not become a permanent family fact.
 
-### 6.3 投票与家庭决定
+### 6.3 Polls and family decisions
 
-在群聊中可以发起家庭决定：
+To create a family decision in a group:
 
-1. 填写问题与候选项；
-2. 邀请成员参与；
-3. 收集选择与讨论；
-4. 结束后查看结果或 AI 总结；
-5. 需要时把采纳方案转成任务。
+1. Enter the question and options.
+2. Invite members to participate.
+3. Collect choices and discussion.
+4. Close the decision and review the result or AI summary.
+5. Convert the adopted option into a task when useful.
 
-## 7. 家庭资料
+## 7. Family resources
 
-### 7.1 上传和查看
+### 7.1 Upload and review
 
-通过输入框旁的附件入口选择图片、视频、文档或语音。上传后可以在资料区域预览、查看原件或继续整理。
+Use the attachment control beside the composer to select an image, video, document, or voice recording. Uploaded items appear in Resources, where family members can preview, open, and organize them.
 
-大文件上传、缩略图、文档预览和语音转写依赖部署环境与对应服务。上传失败时，先检查网络、文件大小、格式和持久化目录权限。
+Large uploads, thumbnails, document previews, and transcription depend on the deployment and its supporting services. If an upload fails, check the network, file size, format, and permissions on the persistent storage directory.
 
-### 7.2 体检报告与健康资料
+### 7.2 Health reports
 
-推荐流程：
+A safe health-document workflow is:
 
-1. 上传体检报告 PDF、图片或文档；
-2. 保留原始文件，不用 AI 摘要替换原件；
-3. 运行“资料解析”，提取检查项目、原文结论和复查线索；
-4. 家人查询时，优先引用可追溯资料；
-5. 需要复查时生成健康跟进任务候选；
-6. 家人确认后再创建提醒或任务。
+1. Upload the original PDF, image, or document.
+2. Keep the original file; never replace it with an AI summary.
+3. Run resource parsing to extract measurements, original conclusions, and follow-up clues.
+4. Prefer traceable sources when family members ask questions.
+5. Create a health follow-up task candidate when another examination is needed.
+6. Add the reminder or task only after family confirmation.
 
-健康资料属于敏感信息。解析结果不等于医疗诊断，模型推测不能写成事实，也不能未经确认进入长期记忆。
+Health information is sensitive. Parsing is not a medical diagnosis. Model speculation must never be stored as fact or enter long-term memory without confirmation.
 
-## 8. AI 功能
+## 8. AI features
 
-### 8.1 配置模型
+### 8.1 Configure a provider
 
-打开 **设置 → AI**，添加模型服务并选择快速模型与深度模型。也可以通过部署环境变量配置：
+Open **Settings → AI** to add a provider and select fast and deep models. Server-side environment variables are also supported:
 
-- `DEEPSEEK_*`：适合重视性价比的家庭；
-- `OPENAI_*`：当前明确用于 OpenAI 语音转写；聊天 Provider 适配仍在完善；
-- 不配置模型：任务、群聊、资料、成员关系和基础提醒仍可使用。
+- `DEEPSEEK_*`: a cost-conscious choice for everyday household use;
+- `OPENAI_*`: currently used explicitly for OpenAI transcription, while chat-provider integration continues to evolve;
+- no model configuration: tasks, groups, resources, relationships, and basic reminders still work.
 
-“测试 API”会发出真实请求并显示连接结果。DeepSeek 卡片没有填写 Key 时会尝试服务端 `DEEPSEEK_API_KEY`；两处都未配置时，会提示到设置接入 API 后再使用智慧功能。
+**Test API** sends a real request and reports the result. If a DeepSeek card has no key, the server tries `DEEPSEEK_API_KEY`. If neither is configured, the interface asks the user to connect an API before using AI features.
 
-当前结构化聊天主链以 DeepSeek 为主。设置中出现 Provider 入口不代表对应聊天后端已经完整接通。不要把 API Key 写进 README、截图、Issue 或前端公开变量。
+The structured chat path currently centers on DeepSeek. A provider appearing in Settings does not guarantee that every chat backend is fully wired. Never place an API key in the README, screenshots, issues, or public frontend variables.
 
-### 8.2 AI 能做什么
+### 8.2 What AI can do
 
-- 识别意图和成员、时间、事项；
-- 从文档和聊天中提取结构化信息；
-- 生成任务、提醒和资料候选；
-- 生成个人或家庭日、周、月总结；
-- 生成成员画像草稿；
-- 从可信记录中提出长期记忆候选；
-- 为家庭讨论提供简短建议或总结。
+- identify intent, members, time, and subject;
+- extract structured information from documents and chats;
+- propose tasks, reminders, and resources;
+- produce personal or family daily, weekly, and monthly summaries;
+- draft member profiles;
+- propose long-term memories from trusted records;
+- provide concise suggestions and discussion summaries.
 
-### 8.3 AI 不能做什么
+### 8.3 What AI cannot do
 
-- 自由选择任意工具并连续自主执行；
-- 绕过家庭权限；
-- 直接修改数据库或删除数据；
-- 替家人确认任务、邀请和长期记忆；
-- 把模型推测当成原始事实；
-- 替医生做诊断。
+- choose arbitrary tools and execute an autonomous loop;
+- bypass family permissions;
+- edit the database or delete data directly;
+- confirm tasks, invitations, or long-term memories on behalf of people;
+- present model speculation as an original fact;
+- replace a doctor or make a diagnosis.
 
-## 9. 总结、画像与长期记忆
+## 9. Summaries, profiles, and long-term memory
 
-### 9.1 家庭总结
+### 9.1 Family summaries
 
-可以主动请求日、周或月总结。后台调度也可以在正确配置后生成周期性整理结果。
+Request a daily, weekly, or monthly summary at any time. With the correct configuration, background scheduling can generate periodic summaries as well.
 
-总结属于派生内容：它可以重新生成，不能覆盖原始聊天、任务、文件或事件。
+Summaries are derived content. They can be regenerated and must never overwrite original chats, tasks, files, or events.
 
-### 9.2 成员画像
+### 9.2 Member profiles
 
-人物画像根据可追溯记录形成，适合描述长期偏好、稳定习惯和需要照顾的事项。画像应带来源、置信度和更新时间；不确定信息应标记为候选，而不是盖章定论。
+Profiles are derived from traceable records and are best suited to durable preferences, stable habits, and recurring care needs. A profile should preserve sources, confidence, and update time. Uncertain information remains a candidate rather than a definitive claim.
 
-### 9.3 长期记忆
+### 9.3 Long-term memory
 
-适合保存：稳定偏好、长期习惯、家庭规则、反复出现的模式。
+Good memory candidates include stable preferences, long-term habits, family rules, and recurring patterns.
 
-不适合保存：一次性情绪、临时饭局、未经证实的健康推测、模型自己的猜测。
+Poor candidates include one-time emotions, a temporary dinner plan, unverified health speculation, and the model's own guesses.
 
-长期记忆写入需要确认，家人可以补充或修正。
+Long-term memory requires confirmation and can be corrected or expanded by family members.
 
-## 10. 通知与提醒
+## 10. Notifications and reminders
 
-### 10.1 开启通知
+### 10.1 Enable notifications
 
-在个人资料或通知设置中启用系统通知，并允许浏览器通知权限。服务端 Web Push 还需要 VAPID、HTTPS、通知端点和后台派发配置。
+Enable system notifications in profile or notification settings and grant browser permission. Server-side Web Push also requires HTTPS, VAPID configuration, a valid subscription endpoint, and a background dispatcher.
 
-### 10.2 常见限制
+### 10.2 Common limitations
 
-- iOS 通常要求先把 PWA 添加到主屏幕；
-- 浏览器拒绝权限后，需要到系统或网站设置中重新允许；
-- 只有页面内提醒不等于后台 Web Push 已配置成功；
-- 正式验收应在真实设备上完成一次服务器到设备的推送测试。
+- iOS usually requires the PWA to be installed on the home screen.
+- If browser permission was denied, re-enable it in system or site settings.
+- An in-page reminder does not prove that background Web Push works.
+- Production acceptance should include a real server-to-device push test.
 
-## 11. 家庭成员与访客
+## 11. Family members and guests
 
-### 11.1 家庭成员邀请
+### 11.1 Family members
 
-家庭成员需要注册账号，并由家庭管理员确认。确认后才能查看家庭范围内被授权的任务、资料和记录。
+Family members register their own accounts and require administrator approval. Only approved identities can access authorized family tasks, resources, and records.
 
-### 11.2 临时群聊访客
+### 11.2 Temporary group-chat guests
 
-临时访客使用群聊邀请链接和 4 位口令进入指定群聊。访客只能看到当前群聊与群文件，不能查看家庭资料、成员画像、历史记录或 AI 记忆。
+Guests enter a specific group through an invitation link and four-digit code. They can see only that group and its files—not family resources, member profiles, history, or AI memory.
 
-临时访客身份通常只保留在当前设备一段时间；登录账号后才适合跨设备找回身份。
+Temporary guest identity is normally retained on the current device for a limited time. A signed-in account is required for durable cross-device identity.
 
-## 12. 设置
+## 12. Settings
 
-### 外观
+### Appearance
 
-选择显示模式与主题。外观设置只改变视觉，不改变家庭数据。
+Choose a color theme and light, dark, or automatic display. Appearance never changes family data.
 
-### 网络
+### Network
 
-公网域名可以留空；本地地址根据部署环境生成并可修改。选择“自动”后会同时检测可用连接，并在公网与本地之间选择延迟更低的一条；也可以手动固定连接。
+The public domain may remain empty. Setup derives a local address and users can change it later. Automatic mode checks available routes and chooses the lower-latency option; a route can also be pinned manually.
 
 ### AI
 
-管理模型服务商、模型 ID、助手名称、个性与初始记忆。服务商选择包含通用 API、Coding Plan 和自定义服务；当前结构化聊天主链以 DeepSeek 为主，其他服务以界面标注的接入边界为准。删除服务商前应确认是否仍有依赖该模型的后台功能。
+Manage providers, model IDs, assistant name, personality, and initial memory. Provider options include general APIs, coding plans, and custom services. The structured chat path currently centers on DeepSeek; rely on the integration boundary stated in the interface for every other provider.
 
-### 成员与账户
+### Members and account
 
-管理员可以管理家庭成员；个人账户可修改头像、姓名和密码。生产环境必须先启用相应认证服务。
+Administrators manage family membership. Individual users can update their avatar, name, and password when the required authentication service is enabled.
 
-## 13. 数据、备份与迁移
+## 13. Data, backup, and migration
 
-### 本地文件模式
+### Local-file mode
 
-Docker 默认把 `/app/data` 持久化到 volume。备份时应保存完整 volume，而不只是应用镜像。
+Docker persists `/app/data` in a volume by default. Back up the complete volume, not only the application image.
 
-### Supabase 模式
+### Supabase mode
 
-需要同时考虑：数据库、Storage、认证账号、RLS 策略和服务端 Secret。备份方案应覆盖结构化数据与上传原件。
+Backups must cover the database, Storage, authentication accounts, RLS policies, and server secrets. Preserve both structured data and uploaded originals.
 
-### 基本原则
+### Basic rules
 
-- 不提交 `.env.local`、`data/`、数据库备份和用户上传；
-- 更换域名或设备前先完成备份；
-- 恢复后验证登录、成员归属、附件访问、任务和通知；
-- 本项目当前仍在完善导出、恢复和跨部署迁移工具。
+- Never commit `.env.local`, `data/`, database backups, or user uploads.
+- Back up before changing domains or devices.
+- After a restore, verify sign-in, membership, attachments, tasks, and notifications.
+- Export, restore, and cross-deployment migration tools are still evolving.
 
-## 14. 常见问题
+## 14. Troubleshooting
 
-### 输入一句话却没有创建任务
+### A sentence did not create a task
 
-先看是否出现候选卡或澄清问题。重要写入必须确认；不确定输入不会直接落入任务列表。
+Look for a candidate card or clarification question. Important writes require confirmation; ambiguous text does not go directly into the task list.
 
-### AI 没有回答或只返回基础结果
+### AI did not answer or returned only a basic result
 
-检查模型 Key、模型 ID、网络连接和服务商配置。不配置模型时，应用会保留确定性能力，但不会凭空获得模型总结。
+Check the provider key, model ID, network, and provider configuration. Without a model, deterministic features remain available, but model-generated summaries do not appear magically.
 
-### 上传文件后没有解析结果
+### An uploaded file has no parsing result
 
-确认文件已成功保存，再检查格式、文件大小、解析服务和模型配置。扫描版 PDF 可能还需要 OCR。
+Confirm that the file was stored, then check format, size, parsing services, and model configuration. Scanned PDFs may also require OCR.
 
-### 收不到系统通知
+### System notifications do not arrive
 
-依次检查 HTTPS、PWA 安装、浏览器权限、VAPID、通知端点和后台派发。只看到页面内提醒，不代表后台推送已经打通。
+Check HTTPS, PWA installation, browser permission, VAPID, the subscription endpoint, and background dispatch in that order. In-page reminders do not prove that Web Push is connected.
 
-### 邀请链接打不开或无法加入
+### An invitation link does not open or membership fails
 
-检查公开 URL、HTTPS、邀请 Secret、有效期和 4 位口令。家庭邀请还需要账号注册和管理员确认。
+Check the public URL, HTTPS, invitation secret, expiry, and four-digit code. Family invitations also require account registration and administrator approval.
 
-### 可以把真实家庭数据发到公开 Issue 吗
+### Can real family data be posted in a public issue?
 
-不可以。请先脱敏；密钥、医疗报告、家庭关系、手机号、地址、聊天记录和可利用漏洞都不应公开。
+No. Redact it first. Secrets, medical reports, relationships, phone numbers, addresses, chat history, and exploitable vulnerabilities must not be posted publicly.
 
-## 15. 一分钟上手清单
+## 15. One-minute checklist
 
-- [ ] 在本机启动并打开主页；
-- [ ] 记录一条普通家庭事项；
-- [ ] 创建一个需要确认的任务；
-- [ ] 建一个家庭群并发送附件；
-- [ ] 上传一份脱敏文档并查看资料区；
-- [ ] 选择是否配置 DeepSeek 或 OpenAI API；
-- [ ] 测试总结或资料解析；
-- [ ] 正式部署前启用认证、HTTPS、Secret 和备份；
-- [ ] 在真实设备上验证 PWA 与通知。
+- [ ] Start Family locally and open the home page.
+- [ ] Capture an ordinary household record.
+- [ ] Create a task that requires confirmation.
+- [ ] Create a family group and send an attachment.
+- [ ] Upload a redacted document and review Resources.
+- [ ] Decide whether to connect DeepSeek or OpenAI.
+- [ ] Test a summary or document parse.
+- [ ] Enable authentication, HTTPS, fresh secrets, and backups before public deployment.
+- [ ] Verify PWA installation and notifications on a real device.
 
-返回[项目 README](../README.md)，或继续阅读[系统架构](system-architecture.md)。
+Return to the [project README](../README.md), or continue with [System Architecture](system-architecture.md).

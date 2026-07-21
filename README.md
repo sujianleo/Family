@@ -10,7 +10,7 @@
 
 ---
 
-# Family
+<h1 align="center">我爱饭米粒</h1>
 
 **用心记录，守护家庭。** Record with care, protect your family, and keep household tasks, health documents, and family coordination safely organized over time.
 

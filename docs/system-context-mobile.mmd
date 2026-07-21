@@ -1,12 +1,12 @@
-%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 24, "rankSpacing": 30}}}%%
+%%{init: {"theme": "base", "htmlLabels": false, "themeVariables": {"fontFamily": "Arial, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 24, "rankSpacing": 30, "htmlLabels": false}}}%%
 flowchart TB
-  MEMBER["家庭成员"] --> WEB["家庭网页应用"]
-  GUEST["临时访客"] --> GUESTUI["受限群聊入口"]
-  WEB --> NEXT["Next.js 应用"]
+  MEMBER["Family member"] --> WEB["Family<br/>web app"]
+  GUEST["Temporary<br/>guest"] --> GUESTUI["Restricted<br/>group-chat entry"]
+  WEB --> NEXT["Next.js<br/>application"]
   GUESTUI --> NEXT
-  NEXT --> CORE["确定性业务核心"]
-  CORE --> DATA["Supabase<br/>数据库 / 账号 / 文件"]
-  CORE --> SERVICES["辅助能力<br/>本地文件 · 系统通知<br/>模型 · 语音 · 文档解析"]
+  NEXT --> CORE["Deterministic<br/>business core"]
+  CORE --> DATA["Supabase<br/>Database · accounts · files"]
+  CORE --> SERVICES["Supporting services<br/>Local files · notifications<br/>models · speech · document parsing"]
 
   classDef user fill:#F2F7F4,stroke:#7FA395,color:#20302A,stroke-width:2px;
   classDef core fill:#FFF7EC,stroke:#C49A64,color:#4A3823,stroke-width:2px;

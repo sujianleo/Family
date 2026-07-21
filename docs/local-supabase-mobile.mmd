@@ -1,21 +1,21 @@
-%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 28, "rankSpacing": 34}}}%%
+%%{init: {"theme": "base", "htmlLabels": false, "themeVariables": {"fontFamily": "Arial, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 28, "rankSpacing": 34, "htmlLabels": false}}}%%
 flowchart TB
-  START["运行 ./start.sh"]
-  BOOT["自动识别局域网地址<br/>生成本机独立密钥"]
-  READY["自动启动 Supabase、建表<br/>并构建饭米粒"]
-  DEVICE["手机 / 平板 / 电脑"]
-  APP["饭米粒页面<br/>NAS :3000"]
-  PICK{"当前访问地址"}
-  HOME["局域网访问"]
-  AWAY["公网访问"]
-  LAN["NAS 数据接口<br/>端口 8000"]
-  PUBLIC["已配置的<br/>公网数据接口"]
-  PROXY["HTTPS 反向代理"]
-  API["本地数据服务<br/>Supabase API"]
-  AUTH["Auth<br/>家庭账号"]
-  DB["Postgres<br/>家庭数据"]
-  STORAGE["Storage<br/>家庭文件"]
-  SERVER["Next.js 服务端<br/>内部连接"]
+  START["Run ./start.sh"]
+  BOOT["Detect LAN address<br/>Generate unique secrets"]
+  READY["Start Supabase<br/>Create tables<br/>Build Family"]
+  DEVICE["Phone · tablet · desktop"]
+  APP["Family web app<br/>NAS :3000"]
+  PICK{"Access route?"}
+  HOME["Local access"]
+  AWAY["Internet route"]
+  LAN["NAS data API<br/>Port 8000"]
+  PUBLIC["Public data API"]
+  PROXY["HTTPS reverse proxy"]
+  API["Supabase API"]
+  AUTH["Auth<br/>Family accounts"]
+  DB["Postgres<br/>Family data"]
+  STORAGE["Storage<br/>Family files"]
+  SERVER["Next.js server<br/>Internal link"]
 
   START --> BOOT --> READY --> APP
   DEVICE --> APP
