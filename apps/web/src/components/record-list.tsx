@@ -8334,7 +8334,25 @@ function isFamilyRecordLike(record: unknown): record is FamilyRecord {
 
 function mergeServerRecords(serverRecords: FamilyRecord[], currentRecords: FamilyRecord[]) {
   const serverIds = new Set(serverRecords.map((record) => record.id));
-  return [...serverRecords, ...currentRecords.filter((record) => !serverIds.has(record.id))];
+  const serverResourceKeys = new Set(serverRecords.map(uploadedResourcePersistenceKey).filter(Boolean));
+  return [
+    ...serverRecords,
+    ...currentRecords.filter((record) => {
+      if (serverIds.has(record.id)) return false;
+      const resourceKey = uploadedResourcePersistenceKey(record);
+      return !resourceKey || !serverResourceKeys.has(resourceKey);
+    })
+  ];
+}
+
+function uploadedResourcePersistenceKey(record: FamilyRecord) {
+  if (!isResourceRecord(record)) return "";
+  for (const file of record.sourceFiles || []) {
+    const persistentUrl = [file.originalUrl, file.url, file.previewUrl, file.cacheUrl]
+      .find((url) => typeof url === "string" && Boolean(url) && !isBlobUrl(url));
+    if (persistentUrl) return `${record.kind}:${persistentUrl}`;
+  }
+  return "";
 }
 
 function mergeRecordDisplayDefaults(storedRecords: FamilyRecord[] | null, defaults: FamilyRecord[]) {
@@ -9013,7 +9031,7 @@ function buildResourcesFromChatMessages(
 }
 
 function createResourceId() {
-  return `resource-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  return crypto.randomUUID();
 }
 
 function inferTaskActionType(text: string) {
