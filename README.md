@@ -63,6 +63,8 @@ This single command handles the setup:
 
 Family, PostgreSQL, Auth, API, and Storage run in one Compose project. Each has a separate job, but they start and stop together.
 
+A full self-hosted Supabase installation intentionally appears as several Docker containers: database, authentication, REST, storage, realtime, functions, connection pooling, and supporting services. This is one deployment, not duplicate installations. Manage the Compose project as a unit and do not delete individual containers to make the Docker list shorter.
+
 After the first setup, these three commands cover everyday operation:
 
 ```bash

@@ -12,11 +12,13 @@ Install Docker Compose 2.20 or later, Git, and OpenSSL. From the project directo
 
 `start.sh` runs the internal `scripts/setup-local-supabase.sh` automatically. You do not need to invoke the initialization script or start Supabase separately. Family and Supabase are ultimately started and managed together by the root `docker-compose.yml` project.
 
+The complete stack appears as multiple Docker containers because Supabase separates database, authentication, REST, storage, realtime, functions, image proxying, metadata, Studio, and connection pooling. They belong to one Compose project and should be started, stopped, updated, and backed up together. Removing individual containers produces a partial deployment rather than a smaller equivalent installation.
+
 The script will:
 
 1. Detect the NAS address on the local network.
 2. Download a pinned version of the official Supabase Docker configuration.
-3. Generate a database password, JWT secrets, an anonymous key, and a server key.
+3. Generate database, JWT, application, and Web Push (VAPID) secrets.
 4. Start local services including Auth, Postgres, and Storage.
 5. Create the tables, permissions, and storage buckets required by Family.
 6. Build and start Family.
