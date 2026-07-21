@@ -2,6 +2,7 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import webpush from "web-push";
 import { createServiceSupabaseClient } from "./supabaseServer";
+import { recordRuntimeEvent } from "./runtimeLog";
 
 type LocalNotificationRow = { id: string; recipientMemberId: string; type: string; title: string; body: string; deepLink: string; status: string; deliverAfter: string; scheduledFor: string; readAt?: string | null };
 type LocalEndpointRow = { deviceId: string; memberId: string; endpoint: string; p256dh: string; auth: string; active: boolean; updatedAt: string };
@@ -67,6 +68,7 @@ export async function sendLocalPushTest(memberId: string, deviceId: string, data
 export async function dispatchSupabaseNotifications() {
   if (dispatchRunning) return { attempted: 0, sent: 0 };
   dispatchRunning = true;
+  const startedAt = Date.now();
   try {
     const supabase = createServiceSupabaseClient() as any;
     if (!supabase) return { attempted: 0, sent: 0 };
@@ -129,7 +131,25 @@ export async function dispatchSupabaseNotifications() {
         deliver_after: status === "queued" ? new Date(Date.now() + retryDelayMs).toISOString() : notification.deliver_after
       }).eq("id", notification.id);
     }
+    if (attempted > 0) {
+      await recordRuntimeEvent({
+        durationMs: Date.now() - startedAt,
+        event: "dispatch.completed",
+        metadata: { attempted, sent },
+        source: "notification.push",
+        status: sent === attempted ? "success" : "failed"
+      });
+    }
     return { attempted, sent };
+  } catch (error) {
+    await recordRuntimeEvent({
+      durationMs: Date.now() - startedAt,
+      error,
+      event: "dispatch.completed",
+      source: "notification.push",
+      status: "failed"
+    });
+    throw error;
   } finally {
     dispatchRunning = false;
   }
@@ -138,6 +158,7 @@ export async function dispatchSupabaseNotifications() {
 export async function dispatchLocalNotifications(options: { dataDir?: string; now?: number; sendPush?: SendPush } = {}) {
   if (dispatchRunning) return { attempted: 0, sent: 0 };
   dispatchRunning = true;
+  const startedAt = Date.now();
   try {
     const dataDir = options.dataDir || path.resolve(process.cwd(), "data");
     const now = options.now ?? Date.now();
@@ -177,7 +198,27 @@ export async function dispatchLocalNotifications(options: { dataDir?: string; no
         attemptsByDelivery.set(deliveryKey, priorAttempts);
       }
     }
+    if (attempted > 0) {
+      await recordRuntimeEvent({
+        dataDir,
+        durationMs: Date.now() - startedAt,
+        event: "dispatch.completed",
+        metadata: { attempted, sent },
+        source: "notification.push",
+        status: sent === attempted ? "success" : "failed"
+      });
+    }
     return { attempted, sent };
+  } catch (error) {
+    await recordRuntimeEvent({
+      dataDir: options.dataDir,
+      durationMs: Date.now() - startedAt,
+      error,
+      event: "dispatch.completed",
+      source: "notification.push",
+      status: "failed"
+    });
+    throw error;
   } finally {
     dispatchRunning = false;
   }

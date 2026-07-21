@@ -47,6 +47,7 @@ import type { FamilyRecord, TaskActionType } from "../types";
 import { FAMILY_CARE_SYSTEM_PRINCIPLE } from "../familyCarePrinciple";
 import { inferQuestionTopic, resolveMemberKnowledgeOutcome, type MemberKnowledgeEvidence } from "../memberKnowledge";
 import { cancelAssistantJob, scheduleAssistantJob } from "./assistantScheduler";
+import { formatRuntimeStatusAnswer, recordRuntimeEvent, summarizeRuntimeStatus, type RuntimeErrorType, type RuntimeEventLevel, type RuntimeLogQuery } from "./runtimeLog";
 import {
   chooseKnowledgeInquiryPath,
   collectKnowledgeInquiryReply,
@@ -284,6 +285,7 @@ function knowledgeInquiryQuestionPlan(inquiry: KnowledgeInquiry, followup = fals
 }
 
 export async function runAutomationAction(actionId: string, options: AutomationRunnerOptions = {}): Promise<AutomationRunResult> {
+  const runtimeStartedAt = Date.now();
   const action = getAutomationAction(actionId);
   if (!action) {
     throw new Error(`未知自动化动作: ${actionId}`);
@@ -339,6 +341,14 @@ export async function runAutomationAction(actionId: string, options: AutomationR
       status: "success"
     });
     await appendActionConversationTurn(action.id, { ...options, parameters, rawEventId }, result);
+    await recordRuntimeEvent({
+      dataDir: options.dataDir || defaultDataDir,
+      durationMs: Date.now() - runtimeStartedAt,
+      event: "action.completed",
+      metadata: { actionId: action.id, resultStatus: result.status, sideEffectLevel: action.sideEffectLevel },
+      source: "automation.action",
+      status: "success"
+    });
     return result;
   } catch (error) {
     await createAutomationRun({
@@ -352,6 +362,15 @@ export async function runAutomationAction(actionId: string, options: AutomationR
       requiresConfirmation: action.requiresConfirmation,
       sideEffectLevel: action.sideEffectLevel,
       startedAt,
+      status: "failed"
+    });
+    await recordRuntimeEvent({
+      dataDir: options.dataDir || defaultDataDir,
+      durationMs: Date.now() - runtimeStartedAt,
+      error,
+      event: "action.completed",
+      metadata: { actionId: action.id, sideEffectLevel: action.sideEffectLevel },
+      source: "automation.action",
       status: "failed"
     });
     throw error;
@@ -721,6 +740,25 @@ async function runAutomationActionInternal(actionId: string, options: Automation
       text,
       queryType,
       answer
+    });
+    return {
+      actionId: action.id,
+      status: "answered",
+      result: {
+        ...automationDisplay("inline_assistant", "chat_reply", { dismissible: true }),
+        text: answer
+      }
+    };
+  }
+
+  if (action.id === "app.runtime.inspect") {
+    const query = readRuntimeLogQuery(options.parameters || {});
+    const summary = await summarizeRuntimeStatus({ dataDir: options.dataDir || defaultDataDir, ...query });
+    const answer = formatRuntimeStatusAnswer(summary, query);
+    await appendAutomationRunEvent(action.id, options, {
+      filters: query,
+      matchedEvents: summary.matchedEvents,
+      status: summary.status
     });
     return {
       actionId: action.id,
@@ -1190,6 +1228,7 @@ function memoryTitle(memoryType: Awaited<ReturnType<typeof extractKnowledgeCandi
 }
 
 export async function runAutomationPipeline(pipelineId: string, options: AutomationRunnerOptions = {}): Promise<AutomationPipelineRunResult> {
+  const runtimeStartedAt = Date.now();
   const pipeline = automationPipelines.find((item) => item.id === pipelineId);
   if (!pipeline) {
     throw new Error(`未知自动化流程: ${pipelineId}`);
@@ -1261,6 +1300,14 @@ export async function runAutomationPipeline(pipelineId: string, options: Automat
       startedAt,
       status: "success"
     });
+    await recordRuntimeEvent({
+      dataDir: options.dataDir || defaultDataDir,
+      durationMs: Date.now() - runtimeStartedAt,
+      event: "pipeline.completed",
+      metadata: { pipelineId: pipeline.id, resultStatus: result.status, stepCount: results.length },
+      source: "automation.pipeline",
+      status: "success"
+    });
     return result;
   } catch (error) {
     await createAutomationRun({
@@ -1274,6 +1321,15 @@ export async function runAutomationPipeline(pipelineId: string, options: Automat
       requiresConfirmation: false,
       sideEffectLevel: "medium",
       startedAt,
+      status: "failed"
+    });
+    await recordRuntimeEvent({
+      dataDir: options.dataDir || defaultDataDir,
+      durationMs: Date.now() - runtimeStartedAt,
+      error,
+      event: "pipeline.completed",
+      metadata: { pipelineId: pipeline.id, stepCount: results.length },
+      source: "automation.pipeline",
       status: "failed"
     });
     throw error;
@@ -1687,6 +1743,68 @@ function formatAutomationResultForConversation(result: AutomationRunResult) {
 
 function readString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function readRuntimeLogQuery(parameters: Record<string, unknown>): RuntimeLogQuery {
+  const text = readString(parameters.text);
+  const requestedHours = typeof parameters.hours === "number" ? parameters.hours : inferRuntimeHours(text);
+  const component = readString(parameters.component) || inferRuntimeComponent(text);
+  const level = readRuntimeLevel(parameters.level) || (/(?:报错|错误|异常|失败|故障)/.test(text) ? "error" : undefined);
+  const errorType = readRuntimeErrorType(parameters.error_type) || inferRuntimeErrorType(text);
+  const limit = typeof parameters.limit === "number" ? parameters.limit : 8;
+  return {
+    component: component || undefined,
+    errorType,
+    hours: requestedHours,
+    level,
+    limit
+  };
+}
+
+function inferRuntimeHours(text: string) {
+  const numericHours = text.match(/(?:最近|过去)?\s*(\d{1,3})\s*(?:小时|h\b)/i);
+  if (numericHours) return Math.max(1, Math.min(720, Number(numericHours[1])));
+  const numericDays = text.match(/(?:最近|过去)?\s*(\d{1,2})\s*天/);
+  if (numericDays) return Math.max(1, Math.min(30, Number(numericDays[1]))) * 24;
+  if (/(?:一周|本周|这周|7天)/.test(text)) return 24 * 7;
+  if (/(?:刚刚|当前|现在)/.test(text)) return 1;
+  return 24;
+}
+
+function inferRuntimeComponent(text: string) {
+  if (/(?:DeepSeek|AI|模型)/i.test(text)) return "ai";
+  if (/(?:Action|自动化|任务执行|调度)/i.test(text)) return "automation";
+  if (/(?:通知|推送|VAPID)/i.test(text)) return "notification";
+  if (/(?:路由|意图识别)/.test(text)) return "api.assistant_route";
+  return "";
+}
+
+function readRuntimeLevel(value: unknown): RuntimeEventLevel | undefined {
+  return value === "info" || value === "warn" || value === "error" ? value : undefined;
+}
+
+function readRuntimeErrorType(value: unknown): RuntimeErrorType | undefined {
+  return value === "authentication" ||
+    value === "invalid_response" ||
+    value === "network" ||
+    value === "push" ||
+    value === "rate_limited" ||
+    value === "storage" ||
+    value === "timeout" ||
+    value === "unknown"
+    ? value
+    : undefined;
+}
+
+function inferRuntimeErrorType(text: string): RuntimeErrorType | undefined {
+  if (/(?:超时|timeout)/i.test(text)) return "timeout";
+  if (/(?:限流|429|rate.?limit)/i.test(text)) return "rate_limited";
+  if (/(?:认证|登录|鉴权|401|403)/.test(text)) return "authentication";
+  if (/(?:格式|解析|响应异常)/.test(text)) return "invalid_response";
+  if (/(?:通知|推送|VAPID)/i.test(text)) return "push";
+  if (/(?:数据库|存储|磁盘|Supabase)/i.test(text)) return "storage";
+  if (/(?:网络|连接|DNS)/i.test(text)) return "network";
+  return undefined;
 }
 
 function readRecord(value: unknown): Record<string, unknown> {
