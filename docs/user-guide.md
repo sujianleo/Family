@@ -226,7 +226,7 @@ Long-term memory requires confirmation and can be corrected or expanded by famil
 
 ### 10.1 Enable notifications
 
-Enable system notifications in profile or notification settings and grant browser permission. Server-side Web Push also requires HTTPS, VAPID configuration, a valid subscription endpoint, and a background dispatcher.
+Enable system notifications in profile or notification settings and grant browser permission. The full `./start.sh` deployment generates VAPID keys and starts the Supabase-backed dispatcher automatically. Public Web Push still requires HTTPS and a valid device subscription.
 
 ### 10.2 Common limitations
 

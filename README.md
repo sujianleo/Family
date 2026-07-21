@@ -55,7 +55,7 @@ Install Docker Compose 2.20+, Git, and OpenSSL. From the project directory, run 
 This single command handles the setup:
 
 - **Find the address:** Detect the NAS IP and create a local-network URL.
-- **Prepare secrets:** Generate independent secrets and write the connection settings.
+- **Prepare secrets:** Generate independent application and Web Push (VAPID) keys, then write the connection settings.
 - **Install services:** Download the required components and prepare data and file storage.
 - **Start Family:** Build the app, launch the containers, and create the database tables.
 

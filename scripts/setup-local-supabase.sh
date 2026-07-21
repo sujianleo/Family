@@ -81,6 +81,35 @@ ensure_secret() {
   esac
 }
 
+ensure_vapid_keys() {
+  target=$1
+  public_key=$(read_env "$target" VAPID_PUBLIC_KEY)
+  private_key=$(read_env "$target" VAPID_PRIVATE_KEY)
+  if [ -z "$public_key" ] || [ -z "$private_key" ]; then
+    node_image=${FAMILY_APP_NODE_IMAGE:-node:22-alpine}
+    pair=$(docker run --rm --network none --read-only --cap-drop ALL --entrypoint node "$node_image" -e '
+      const { generateKeyPairSync } = require("node:crypto");
+      const { publicKey, privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+      const publicJwk = publicKey.export({ format: "jwk" });
+      const privateJwk = privateKey.export({ format: "jwk" });
+      const encoded = Buffer.concat([
+        Buffer.from([4]),
+        Buffer.from(publicJwk.x, "base64url"),
+        Buffer.from(publicJwk.y, "base64url")
+      ]).toString("base64url");
+      process.stdout.write(`${encoded} ${privateJwk.d}`);
+    ')
+    public_key=${pair%% *}
+    private_key=${pair#* }
+    set_env "$target" VAPID_PUBLIC_KEY "$public_key"
+    set_env "$target" VAPID_PRIVATE_KEY "$private_key"
+  fi
+  set_env "$target" NEXT_PUBLIC_VAPID_PUBLIC_KEY "$public_key"
+  if [ -z "$(read_env "$target" VAPID_SUBJECT)" ]; then
+    set_env "$target" VAPID_SUBJECT "mailto:admin@family-app.local"
+  fi
+}
+
 default_db_config_volume_name() {
   compose_project=${COMPOSE_PROJECT_NAME:-$(basename "$PROJECT_ROOT")}
   normalized_project=$(printf '%s' "$compose_project" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/-/g; s/^[^a-z0-9]*//')
@@ -181,6 +210,7 @@ ensure_secret "$APP_ENV" FAMILY_APP_CONFIRMATION_SECRET
 ensure_secret "$APP_ENV" INVITE_CODE_SECRET
 ensure_secret "$APP_ENV" GUEST_CHAT_SESSION_SECRET
 ensure_secret "$APP_ENV" GUEST_CHAT_CODE_SECRET
+ensure_vapid_keys "$APP_ENV"
 
 printf '正在启动饭米粒与本地 Supabase（首次会下载并构建镜像）…\n'
 # Older releases started Supabase as a separate Compose project. Removing only

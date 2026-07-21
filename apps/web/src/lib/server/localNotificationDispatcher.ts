@@ -1,6 +1,7 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import webpush from "web-push";
+import { createServiceSupabaseClient } from "./supabaseServer";
 
 type LocalNotificationRow = { id: string; recipientMemberId: string; type: string; title: string; body: string; deepLink: string; status: string; deliverAfter: string; scheduledFor: string; readAt?: string | null };
 type LocalEndpointRow = { deviceId: string; memberId: string; endpoint: string; p256dh: string; auth: string; active: boolean; updatedAt: string };
@@ -17,24 +18,118 @@ let dispatchRunning = false;
 declare global { var familyAppLocalNotificationDispatcher: ReturnType<typeof setInterval> | undefined; }
 
 export function startLocalNotificationDispatcher() {
-  if (process.env.FAMILY_APP_ALLOW_FILE_FALLBACK !== "true") return;
   if (!configureWebPush() || globalThis.familyAppLocalNotificationDispatcher) return;
-  const run = () => void dispatchLocalNotifications().catch((error) => console.error("[notification-dispatch]", error));
+  const supabase = createServiceSupabaseClient();
+  if (!supabase && process.env.FAMILY_APP_ALLOW_FILE_FALLBACK !== "true") return;
+  const dispatch = supabase ? dispatchSupabaseNotifications : dispatchLocalNotifications;
+  const run = () => void dispatch().catch((error) => console.error("[notification-dispatch]", error));
   run();
   globalThis.familyAppLocalNotificationDispatcher = setInterval(run, dispatcherIntervalMs);
   globalThis.familyAppLocalNotificationDispatcher.unref?.();
-  console.info("[notification-dispatch] local Web Push dispatcher started");
+  console.info(`[notification-dispatch] ${supabase ? "Supabase" : "local"} Web Push dispatcher started`);
 }
 
 export async function sendLocalPushTest(memberId: string, deviceId: string, dataDir = path.resolve(process.cwd(), "data")) {
   if (!configureWebPush()) throw new Error("Web Push 密钥尚未配置。");
+  const supabase = createServiceSupabaseClient() as any;
+  if (supabase) {
+    const { data: endpoint, error } = await supabase
+      .from("notification_endpoints")
+      .select("id,endpoint,p256dh,auth")
+      .eq("member_id", memberId)
+      .eq("device_id", deviceId)
+      .eq("channel", "web_push")
+      .eq("active", true)
+      .maybeSingle();
+    if (error) throw error;
+    if (!endpoint) throw new Error("当前设备的 Push 订阅尚未保存。");
+    try {
+      await sendWebPushTest(endpoint);
+      await supabase.from("notification_endpoints").update({ failure_count: 0, last_success_at: new Date().toISOString() }).eq("id", endpoint.id);
+    } catch (error) {
+      const statusCode = readStatusCode(error);
+      if (statusCode === 404 || statusCode === 410) {
+        await supabase.from("notification_endpoints").update({ active: false, last_failure_at: new Date().toISOString() }).eq("id", endpoint.id);
+      }
+      throw error;
+    }
+    return;
+  }
   const endpoints = latestActiveEndpoints(await readJsonl<LocalEndpointRow>(path.join(dataDir, "notification-endpoints.jsonl")));
   const endpoint = endpoints.find((item) => item.memberId === memberId && item.deviceId === deviceId);
   if (!endpoint) throw new Error("当前设备的 Push 订阅尚未保存。");
-  await webpush.sendNotification(
-    { endpoint: endpoint.endpoint, keys: { p256dh: endpoint.p256dh, auth: endpoint.auth } },
-    JSON.stringify({ id: `background-test-${Date.now()}`, title: "饭米粒后台通知已开启", body: "关闭或离开 App 后，任务到点也会通过系统通知提醒你。", deepLink: "/", unreadCount: 0 })
-  );
+  await sendWebPushTest(endpoint);
+}
+
+export async function dispatchSupabaseNotifications() {
+  if (dispatchRunning) return { attempted: 0, sent: 0 };
+  dispatchRunning = true;
+  try {
+    const supabase = createServiceSupabaseClient() as any;
+    if (!supabase) return { attempted: 0, sent: 0 };
+    const { data: notifications, error } = await supabase.rpc("claim_due_notifications", { batch_size: 100 });
+    if (error) throw error;
+    let attempted = 0;
+    let sent = 0;
+    for (const notification of notifications || []) {
+      const { data: preference } = await supabase.from("notification_preferences").select("push_enabled").eq("member_id", notification.recipient_member_id).maybeSingle();
+      if (preference?.push_enabled === false) {
+        await supabase.from("notifications").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", notification.id);
+        continue;
+      }
+      const { data: endpoints, error: endpointError } = await supabase
+        .from("notification_endpoints")
+        .select("id,endpoint,p256dh,auth,failure_count")
+        .eq("member_id", notification.recipient_member_id)
+        .eq("channel", "web_push")
+        .eq("active", true);
+      if (endpointError) throw endpointError;
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("recipient_member_id", notification.recipient_member_id)
+        .is("read_at", null)
+        .neq("status", "canceled");
+      const payload = JSON.stringify({
+        id: notification.id,
+        title: notification.title,
+        body: notification.body,
+        deepLink: notification.deep_link || "/",
+        unreadCount: count || 0
+      });
+      let notificationSent = false;
+      let retryable = false;
+      for (const endpoint of endpoints || []) {
+        attempted += 1;
+        try {
+          await webpush.sendNotification({ endpoint: endpoint.endpoint, keys: { p256dh: endpoint.p256dh, auth: endpoint.auth } }, payload, { TTL: 3600, urgency: "normal" });
+          notificationSent = true;
+          sent += 1;
+          await supabase.from("notification_endpoints").update({ failure_count: 0, last_success_at: new Date().toISOString() }).eq("id", endpoint.id);
+        } catch (error) {
+          const statusCode = readStatusCode(error);
+          const invalid = statusCode === 404 || statusCode === 410;
+          const isRetryable = statusCode === 408 || statusCode === 429 || statusCode >= 500;
+          retryable ||= isRetryable;
+          const failureCount = Number(endpoint.failure_count || 0) + 1;
+          await supabase.from("notification_endpoints").update({
+            active: !invalid && failureCount < 5,
+            failure_count: failureCount,
+            last_failure_at: new Date().toISOString()
+          }).eq("id", endpoint.id);
+        }
+      }
+      const status = notificationSent ? "sent" : retryable && notification.attempt_count < maximumAttempts ? "queued" : "failed";
+      await supabase.from("notifications").update({
+        status,
+        sent_at: notificationSent ? new Date().toISOString() : null,
+        deliver_after: status === "queued" ? new Date(Date.now() + retryDelayMs).toISOString() : notification.deliver_after
+      }).eq("id", notification.id);
+    }
+    return { attempted, sent };
+  } finally {
+    dispatchRunning = false;
+  }
 }
 
 export async function dispatchLocalNotifications(options: { dataDir?: string; now?: number; sendPush?: SendPush } = {}) {
@@ -121,6 +216,12 @@ function shouldAttempt(attempts: LocalDeliveryRow[], now: number) {
 }
 
 function readStatusCode(error: unknown) { return typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : 0; }
+function sendWebPushTest(endpoint: { endpoint: string; p256dh: string; auth: string }) {
+  return webpush.sendNotification(
+    { endpoint: endpoint.endpoint, keys: { p256dh: endpoint.p256dh, auth: endpoint.auth } },
+    JSON.stringify({ id: `background-test-${Date.now()}`, title: "饭米粒后台通知已开启", body: "关闭或离开 App 后，任务到点也会通过系统通知提醒你。", deepLink: "/", unreadCount: 0 })
+  );
+}
 function configureWebPush() {
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;

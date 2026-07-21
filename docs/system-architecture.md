@@ -503,7 +503,7 @@ Long-term memory is appropriate only for stable, repeated information that will 
 
 The Node.js runtime starts the following through `apps/web/src/instrumentation.ts`:
 
-- the local notification dispatcher;
+- the notification dispatcher, using Supabase in a full deployment and JSONL storage in local fallback mode;
 - `assistantScheduler`;
 - the background family organizer.
 
@@ -565,7 +565,7 @@ Relevant files:
 - `apps/web/src/lib/server/localNotificationDispatcher.ts`
 - `apps/web/src/components/notification-center.tsx`
 
-System notifications require HTTPS, browser permission, VAPID configuration, and a valid subscription. In-page reminders and background Web Push are separate verification paths.
+System notifications require HTTPS, browser permission, VAPID configuration, and a valid subscription. The full deployment script generates VAPID keys, and the Node.js dispatcher reads the same Supabase notification tables used by the API. In-page reminders and background Web Push remain separate verification paths.
 
 ## 16. Storage modes
 
