@@ -106,7 +106,11 @@ ensure_vapid_keys() {
   fi
   set_env "$target" NEXT_PUBLIC_VAPID_PUBLIC_KEY "$public_key"
   if [ -z "$(read_env "$target" VAPID_SUBJECT)" ]; then
-    set_env "$target" VAPID_SUBJECT "mailto:admin@family-app.local"
+    app_url=$(read_env "$target" NEXT_PUBLIC_APP_URL)
+    case "$app_url" in
+      https://*) set_env "$target" VAPID_SUBJECT "$app_url" ;;
+      *) set_env "$target" VAPID_SUBJECT "https://example.com" ;;
+    esac
   fi
 }
 
