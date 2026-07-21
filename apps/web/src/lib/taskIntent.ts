@@ -243,7 +243,7 @@ export function isTimedTaskStatement(text: string) {
   if (/[?？]$/.test(normalized) || /呢$/.test(normalized) || /(几点|什么时候|怎么|怎样|如何|为什么|为啥|是否|吗|么)/.test(normalized)) {
     return false;
   }
-  if (/(?:总结|汇总|复盘|日报|周报|月报)/.test(normalized)) {
+  if (isNonExecutableReportRequest(normalized)) {
     return false;
   }
   if (isAmbiguousOrganizationRequest(normalized)) {
@@ -298,6 +298,17 @@ export function isTimedTaskStatement(text: string) {
   }
 
   return true;
+}
+
+function isNonExecutableReportRequest(text: string) {
+  if (!/(?:总结|汇总|复盘|日报|周报|月报)/.test(text)) {
+    return false;
+  }
+  // “本周周报”或“总结一下今天”是报告/总结请求；但明确说提交、发送、
+  // 上交等动作时，时间就是任务的截止点，不能被报告关键词提前拦截。
+  const hasReportDeliveryAction =
+    /(?:提交|上交|交付|发送|发出|发布|完成|交).{0,8}(?:总结|汇总|复盘|日报|周报|月报)|发(?:日报|周报|月报)|(?:总结|汇总|复盘|日报|周报|月报).{0,8}(?:提交|上交|交付|发送|发出|发布|完成|交)/.test(text);
+  return !hasReportDeliveryAction && !isExplicitTaskCommand(text);
 }
 
 function isNegatedTaskRequest(text: string) {
