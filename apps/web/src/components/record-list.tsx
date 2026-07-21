@@ -8335,7 +8335,7 @@ function isFamilyRecordLike(record: unknown): record is FamilyRecord {
 function mergeServerRecords(serverRecords: FamilyRecord[], currentRecords: FamilyRecord[]) {
   const serverIds = new Set(serverRecords.map((record) => record.id));
   const serverResourceKeys = new Set(serverRecords.map(uploadedResourcePersistenceKey).filter(Boolean));
-  return [
+  const mergedRecords = [
     ...serverRecords,
     ...currentRecords.filter((record) => {
       if (serverIds.has(record.id)) return false;
@@ -8343,6 +8343,16 @@ function mergeServerRecords(serverRecords: FamilyRecord[], currentRecords: Famil
       return !resourceKey || !serverResourceKeys.has(resourceKey);
     })
   ];
+
+  // Polling returns fresh objects even when no record changed. Reusing the
+  // current array prevents the entire home list (including images and open
+  // cards) from repainting every three seconds.
+  return sameFamilyRecordSnapshot(mergedRecords, currentRecords) ? currentRecords : mergedRecords;
+}
+
+function sameFamilyRecordSnapshot(left: FamilyRecord[], right: FamilyRecord[]) {
+  if (left.length !== right.length) return false;
+  return left.every((record, index) => JSON.stringify(record) === JSON.stringify(right[index]));
 }
 
 function uploadedResourcePersistenceKey(record: FamilyRecord) {
