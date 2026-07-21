@@ -34,7 +34,6 @@ apps/web/data/guest-uploads/
 apps/web/data/tus-uploads/
 repository/
 file_list.txt
-.codegraph/
 
 # Public-source boundary: all test implementation lives in family-app-test.
 apps/web/fixtures/
