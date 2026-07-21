@@ -256,8 +256,7 @@ export async function PATCH(request: Request) {
         };
       });
       if (!found) return NextResponse.json({ detail: "记录不存在。" }, { status: 404 });
-      await mkdir(fallbackDbDir, { recursive: true });
-      await writeFile(fallbackRecordsPath, updated.map((record) => JSON.stringify(record)).join("\n") + "\n", "utf8");
+      await writeFallbackRecords(updated);
       return NextResponse.json({ id, status });
     }
 
@@ -294,6 +293,49 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ detail: error.message }, { status: error.status });
     }
     return NextResponse.json({ detail: error instanceof Error ? error.message : "记录更新失败。" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const context = await requireFamilyRequestContext(request);
+    const body = (await request.json().catch(() => ({}))) as { id?: unknown };
+    const id = normalizeUuid(body.id);
+    if (!id) {
+      return NextResponse.json({ detail: "缺少有效记录 ID。" }, { status: 400 });
+    }
+
+    if (!supabaseUrl || !supabaseServiceRoleKey || !context.familyId) {
+      if (!canUseFileFallback()) {
+        return NextResponse.json({ detail: "生产环境必须配置 Supabase 存储。" }, { status: 503 });
+      }
+      const records = await readFallbackRecords();
+      const remainingRecords = records.filter((record) => record.id !== id);
+      if (remainingRecords.length !== records.length) {
+        await writeFallbackRecords(remainingRecords);
+      }
+      return NextResponse.json({ deleted: remainingRecords.length !== records.length, id });
+    }
+
+    const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { persistSession: false }
+    });
+    const { data, error } = await supabase
+      .from("family_records")
+      .delete()
+      .eq("id", id)
+      .eq("family_id", context.familyId)
+      .select("id")
+      .maybeSingle();
+    if (error) {
+      return NextResponse.json({ detail: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ deleted: Boolean(data?.id), id });
+  } catch (error) {
+    if (error instanceof FamilyRequestContextError) {
+      return NextResponse.json({ detail: error.message }, { status: error.status });
+    }
+    return NextResponse.json({ detail: error instanceof Error ? error.message : "记录删除失败。" }, { status: 500 });
   }
 }
 
@@ -506,6 +548,15 @@ async function appendFallbackRecord(record: FamilyRecord) {
     savedAt: new Date().toISOString()
   };
   await appendFile(fallbackRecordsPath, `${JSON.stringify(row)}\n`, "utf8");
+}
+
+async function writeFallbackRecords(records: FamilyRecord[]) {
+  await mkdir(fallbackDbDir, { recursive: true });
+  const savedAt = new Date().toISOString();
+  const content = records
+    .map((record) => JSON.stringify({ record, savedAt } satisfies FallbackRecordRow))
+    .join("\n");
+  await writeFile(fallbackRecordsPath, content ? `${content}\n` : "", "utf8");
 }
 
 async function readFallbackRecords() {

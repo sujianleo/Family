@@ -28,7 +28,7 @@ import { familyRelationshipOptions, relationshipKindForLabel } from "@/lib/famil
 import type { FanmiliSticker } from "@/lib/fanmiliStickers";
 import { enqueueMetaEvent, fetchMetaEvents, metaEventsToRoomMessages } from "@/lib/meta";
 import { buildDueLocalTaskReminders, isTaskOverdue, localTaskReminderEventType, nextLocalTaskReminderDelay, readFiredLocalTaskReminderIds, requestSystemNotificationPermission, writeFiredLocalTaskReminderIds } from "@/lib/localTaskReminders";
-import { enqueueFamilyRecord, requestAssignmentSuggestion, requestResourceInsight, updateFamilyRecord } from "@/lib/records";
+import { deleteFamilyRecord, enqueueFamilyRecord, requestAssignmentSuggestion, requestResourceInsight, updateFamilyRecord } from "@/lib/records";
 import { RESOURCE_UPLOAD_ACCEPT, RESOURCE_UPLOAD_MAX_LABEL, isAnalyzableDocumentFile, validateResourceUploadFile } from "@/lib/resourceUploadPolicy";
 import { parseResourceParsePresentation } from "@/lib/resourceParsePresentation";
 import { isPwaInstallCommand, PWA_INSTALL_REQUEST_EVENT } from "@/lib/pwaInstallRequest";
@@ -627,6 +627,8 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(() => new Set());
   const deepLinkHandledRef = useRef(false);
   const deleteToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRecordDeletionIdsRef = useRef(new Set<string>());
+  const softDeleteRequestsRef = useRef(new Map<string, Promise<boolean>>());
   const selectedTask = useMemo(
     () => groupRecords.find((record) => record.id === selectedTaskId)
       || taskRecords.find((record) => record.id === selectedTaskId)
@@ -785,7 +787,9 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
         const payload = response.ok ? await response.json() : null;
         if (!active) return;
         const serverRecords = readFamilyRecordsResponse(payload).filter(
-          (record) => demoDataEnabled || !demoRecordIdSet.has(record.id)
+          (record) =>
+            (demoDataEnabled || !demoRecordIdSet.has(record.id)) &&
+            !pendingRecordDeletionIdsRef.current.has(record.id)
         );
         if (serverRecords.length) {
           setLocalRecords((currentRecords) => mergeServerRecords(serverRecords, currentRecords));
@@ -1397,11 +1401,32 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
     });
   }
 
+  function restoreRecordToLocalState(record: FamilyRecord, recordIndex = 0) {
+    setLocalRecords((currentRecords) => {
+      if (currentRecords.some((item) => item.id === record.id)) return currentRecords;
+      const nextRecords = [...currentRecords];
+      nextRecords.splice(Math.min(recordIndex, nextRecords.length), 0, record);
+      return nextRecords;
+    });
+  }
+
+  function persistRecordDeletion(record: FamilyRecord, recordIndex = 0) {
+    pendingRecordDeletionIdsRef.current.add(record.id);
+    const request = deleteFamilyRecord(record.id).catch(() => false);
+    void request.then((deleted) => {
+      pendingRecordDeletionIdsRef.current.delete(record.id);
+      if (!deleted) restoreRecordToLocalState(record, recordIndex);
+    });
+    return request;
+  }
+
   function handleDeleteRecord(recordId: string) {
+    const recordIndex = localRecords.findIndex((record) => record.id === recordId);
     const deletedRecord = localRecords.find((record) => record.id === recordId);
     removeRecordFromLocalState(recordId);
     if (deletedRecord) {
       logDeletedRecord(deletedRecord);
+      void persistRecordDeletion(deletedRecord, Math.max(0, recordIndex));
     }
   }
 
@@ -1414,9 +1439,12 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
 
     if (swipeToast?.type === "deleted" && swipeToast.record) {
       logDeletedRecord(swipeToast.record);
+      softDeleteRequestsRef.current.delete(swipeToast.record.id);
     }
     clearPendingDeleteToast(deleteToastTimerRef);
     removeRecordFromLocalState(recordId);
+    const deleteRequest = persistRecordDeletion(deletedRecord, recordIndex);
+    softDeleteRequestsRef.current.set(recordId, deleteRequest);
     setSwipeToast({
       id: `deleted-${recordId}-${Date.now()}`,
       message: "已删除，可撤销",
@@ -1426,6 +1454,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
     });
     deleteToastTimerRef.current = setTimeout(() => {
       logDeletedRecord(deletedRecord);
+      softDeleteRequestsRef.current.delete(recordId);
       setSwipeToast((current) => (current?.type === "deleted" && current.record?.id === recordId ? null : current));
       deleteToastTimerRef.current = null;
     }, 5200);
@@ -1437,15 +1466,15 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
     }
 
     const { record, recordIndex = 0 } = swipeToast;
+    const deleteRequest = softDeleteRequestsRef.current.get(record.id);
+    softDeleteRequestsRef.current.delete(record.id);
     clearPendingDeleteToast(deleteToastTimerRef);
-    setLocalRecords((currentRecords) => {
-      if (currentRecords.some((item) => item.id === record.id)) {
-        return currentRecords;
-      }
-      const nextRecords = [...currentRecords];
-      nextRecords.splice(Math.min(recordIndex, nextRecords.length), 0, record);
-      return nextRecords;
-    });
+    restoreRecordToLocalState(record, recordIndex);
+    if (deleteRequest) {
+      void deleteRequest.then((deleted) => {
+        if (deleted) void enqueueFamilyRecord(record);
+      });
+    }
     setSwipeToast(null);
   }
 
@@ -1536,7 +1565,10 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
     if (!selectedResources.length) return;
     const selectedIds = new Set(selectedResources.map((record) => record.id));
     setLocalRecords((currentRecords) => currentRecords.filter((record) => !selectedIds.has(record.id)));
-    selectedResources.forEach(logDeletedRecord);
+    selectedResources.forEach((record) => {
+      logDeletedRecord(record);
+      void persistRecordDeletion(record, Math.max(0, localRecords.findIndex((item) => item.id === record.id)));
+    });
     setSelectedResourceId((currentId) => currentId && selectedIds.has(currentId) ? null : currentId);
     setSelectedRecordIds(new Set());
     setMultiSelectMode(false);

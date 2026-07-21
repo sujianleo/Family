@@ -75,6 +75,15 @@ export async function updateFamilyRecord(record: Pick<FamilyRecord, "id" | "stat
   return res.ok;
 }
 
+export async function deleteFamilyRecord(id: string) {
+  const res = await familyFetch("/api/family-records", {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id })
+  });
+  return res.ok;
+}
+
 function normalizeSupabaseId(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) ? value : "";
 }
