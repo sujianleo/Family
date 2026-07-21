@@ -56,6 +56,9 @@ export async function routeAssistantWithLangChain(
   if (isTimedTaskStatement(normalized)) {
     return localRoute;
   }
+  if (localRoute.kind === "action" && localRoute.id.startsWith("summary.")) {
+    return localRoute;
+  }
   if (localRoute.kind === "action" && localRoute.id === "group.organize.contextual") {
     return localRoute;
   }

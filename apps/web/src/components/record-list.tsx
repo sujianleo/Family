@@ -32,7 +32,7 @@ import { deleteFamilyRecord, enqueueFamilyRecord, requestAssignmentSuggestion, r
 import { RESOURCE_UPLOAD_ACCEPT, RESOURCE_UPLOAD_MAX_LABEL, isAnalyzableDocumentFile, validateResourceUploadFile } from "@/lib/resourceUploadPolicy";
 import { parseResourceParsePresentation } from "@/lib/resourceParsePresentation";
 import { isPwaInstallCommand, PWA_INSTALL_REQUEST_EVENT } from "@/lib/pwaInstallRequest";
-import { extractTaskTimeMentions, isOpenVolunteerQuestion as isOpenVolunteerTaskQuestion, isTimedTaskStatement, normalizeTaskTitle, parseTaskReminder, shouldSuggestTaskFromText } from "@/lib/taskIntent";
+import { extractTaskTimeMentions, isOpenVolunteerQuestion as isOpenVolunteerTaskQuestion, isSummaryRequestText, isTimedTaskStatement, normalizeTaskTitle, parseTaskReminder, shouldSuggestTaskFromText } from "@/lib/taskIntent";
 import { formatTaskListDateTime } from "@/lib/taskDisplayTime";
 import { useChatPresence } from "@/lib/useChatPresence";
 import { AvatarImage, MemberAvatar, familyAvatarSeeds, resolveMemberAvatarSeed } from "./avatar";
@@ -3380,15 +3380,16 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
   }
 
   function buildAssistantRouteContext() {
+    const contextMessages = composerSession.id === conversationSessionIdRef.current ? composerSession.messages : [];
     return {
       actorMemberId: currentMemberId,
       actorName: currentMemberName,
       dialogueState: assistantDialogueStateRef.current,
-      recentConversation: composerSession.messages
+      recentConversation: contextMessages
         .filter((message) => (message.role === "assistant" || message.role === "user") && message.state !== "running")
         .map((message) => ({ role: message.role, text: message.text }))
         .slice(-12),
-      recentUserTexts: composerSession.messages
+      recentUserTexts: contextMessages
         .filter((message) => message.role === "user")
         .map((message) => message.text)
         .slice(-8)
@@ -3452,7 +3453,11 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
     const directContextualGroup = localPreflightRoute.kind === "action" && localPreflightRoute.id === "group.organize.contextual";
     const directFamilyQuestion = localPreflightRoute.kind === "action" && localPreflightRoute.id === "group.ask.family";
     const directLocalGroupAction = directContextualGroup || directFamilyQuestion;
-    const directTimedTask = isTimedTaskStatement(initialFocusText) && !directLocalGroupAction;
+    const directTimedTask =
+      isTimedTaskStatement(initialFocusText) &&
+      !directLocalGroupAction &&
+      localPreflightRoute.kind === "fallback" &&
+      localPreflightRoute.suggestedAction === "task.create.input";
     const shouldOfferTaskSuggestion =
       shouldSuggestTaskFromText(initialFocusText, { contextTab: activeTab, mentionedMemberIds: submittedMentionIds, senderMemberId: currentMemberId }) ||
       shouldOfferComposerTaskCard(initialFocusText);
@@ -4042,8 +4047,9 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
     setPendingSuggestion(null);
     setAutomationFeedback({ state: "running", text: "正在回复..." });
     setTemporaryVoiceStatus("正在回复", { sticky: true });
+    const contextMessages = composerSession.id === conversationSessionIdRef.current ? composerSession.messages : [];
     const result = await runAutomationAction("app.chat", {
-      recent_user_texts: composerSession.messages
+      recent_user_texts: contextMessages
         .filter((message) => message.role === "user")
         .map((message) => message.text)
         .slice(-8),
@@ -8558,7 +8564,7 @@ function classifyLifeLogIntent(text: string, assistantText: string): LifeLogInte
     intents.add("search");
   }
 
-  if (/(总结|汇总|复盘|日报|周报|月报)/.test(normalized)) {
+  if (isSummaryRequestText(normalized)) {
     intents.add("summary_request");
   }
 
@@ -8578,7 +8584,7 @@ function classifyLifeLogIntent(text: string, assistantText: string): LifeLogInte
     intents.add("question");
   }
 
-  if (/(今天|明天|昨天|周末|吃|喝|去了|看到|感觉|觉得|开心|累|生气|难受|记录一下)/.test(normalized)) {
+  if (!intents.has("summary_request") && !intents.has("question") && /(今天|明天|昨天|周末|吃|喝|去了|看到|感觉|觉得|开心|累|生气|难受|记录一下)/.test(normalized)) {
     intents.add("daily_log");
   }
 

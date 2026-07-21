@@ -10,7 +10,7 @@ import {
 import { detectDangerousOperation } from "./safetyGuard";
 import type { FamilyMember } from "./types";
 import type { AutomationDisplayTarget, AutomationDisplayType } from "./automations";
-import { isAmbientConditionStatement, isTimedTaskStatement } from "./taskIntent";
+import { isAmbientConditionStatement, isSummaryRequestText, isTimedTaskStatement } from "./taskIntent";
 import { parseTemporalExpression } from "./temporal";
 
 export type AssistantDialogueState = {
@@ -1287,6 +1287,7 @@ function classifyRagQueryAction(text: string): "rag.query.family" | "rag.query.r
 }
 
 function classifyOrganizeAction(text: string): "record.organize" | "resource.organize" | null {
+  if (isSummaryRequestText(text)) return null;
   if (!/(?:整理|归类)/.test(text)) return null;
   if (/(?:创建|新建|安排|给|让).{0,28}(?:任务|待办)/.test(text)) return null;
   if (/(?:资料|资料库|附件|照片|文档|文件)/.test(text)) return "resource.organize";
@@ -1606,6 +1607,9 @@ function extractDeepSummaryActionId(text: string): AutomationActionId | null {
     return "summary.personal.weekly";
   }
   if (/总结今天|今天总结|今日总结|日总结/.test(normalized)) {
+    return "summary.personal.daily";
+  }
+  if (isSummaryRequestText(normalized)) {
     return "summary.personal.daily";
   }
   return null;
