@@ -4,7 +4,7 @@ import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { runAutomationAction } from "@/lib/automations";
 import { DEFAULT_ASSISTANT_NAME } from "@/lib/assistantIdentity";
-import { familyFetch } from "@/lib/familyApi";
+import { familyFetch, isFamilyAuthRequired } from "@/lib/familyApi";
 import { normalizeFamilyRelationshipLabel } from "@/lib/familyRelationships";
 import { calculateMemberAge, formatMemberBirthDateInput, memberBirthDatePickerMax, parseMemberBirthDateInput } from "@/lib/memberProfileAge";
 import { useHomeDrawerSwipe } from "@/lib/homeDrawerGesture";
@@ -124,6 +124,7 @@ type SettingsDrawerProps = {
   open: boolean;
   onOpen: () => void;
   onClose: () => void;
+  onAiConnected: () => void;
   onOpenAccount: () => void;
   onMemberRemoved: (memberId: string) => void;
   onMemberUpdated: (memberId: string, profile: MemberProfile) => void;
@@ -458,7 +459,7 @@ function normalizeStoredProvider(provider: AiProvider): AiProvider {
   };
 }
 
-export function SettingsDrawer({ currentMemberId, isFamilyAdmin, members, open, onOpen, onClose, onOpenAccount, onMemberRemoved, onMemberUpdated, onSignOut }: SettingsDrawerProps) {
+export function SettingsDrawer({ currentMemberId, isFamilyAdmin, members, open, onOpen, onClose, onAiConnected, onOpenAccount, onMemberRemoved, onMemberUpdated, onSignOut }: SettingsDrawerProps) {
   const [section, setSection] = useState<SettingsSection>("appearance");
   const [generalDetail, setGeneralDetail] = useState<GeneralDetail | null>(null);
   const [storageEstimate, setStorageEstimate] = useState<{ quota?: number; usage?: number } | null>(null);
@@ -709,6 +710,7 @@ export function SettingsDrawer({ currentMemberId, isFamilyAdmin, members, open, 
         status: "connected",
         testDetail: provider.apiKey.trim() ? "API 已通过真实请求验证。" : "服务器 API 配置已通过真实请求验证。"
       });
+      window.setTimeout(onAiConnected, 450);
     } catch (error) {
       updateProvider(id, {
         status: "failed",
@@ -1067,7 +1069,7 @@ export function SettingsDrawer({ currentMemberId, isFamilyAdmin, members, open, 
                         <button onClick={() => { onClose(); onOpenAccount(); }} type="button"><span><b>账户设置</b><small>头像、姓名与密码</small></span><i>›</i></button>
                         <button onClick={() => void openGeneralDetail("about")} type="button"><span><b>关于饭米粒</b><small>版本 1.0.0</small></span><i>›</i></button>
                       </div>
-                      <button className="settings-signout-button" type="button" onClick={onSignOut}>退出账号</button>
+                      {isFamilyAuthRequired() ? <button className="settings-signout-button" type="button" onClick={onSignOut}>退出账号</button> : null}
                     </>
                   )}
                 </SettingsPanel>

@@ -39,31 +39,47 @@
 
 ## Quick Start
 
-只体验界面与本地文件存储：
+### Docker Compose（完整家庭部署）
+
+准备 Docker Compose 2.20 或更高版本、Git 和 OpenSSL。进入项目目录后，首次部署只运行：
 
 ```bash
-docker compose up --build -d
+./start.sh
 ```
 
-在 NAS 上使用本地 Supabase、登录和家庭成员：
+`start.sh` 会识别局域网地址、生成独立密钥、下载固定版本的官方 Supabase Compose 配置、构建应用、启动全部容器并自动建表。根目录的 `docker-compose.yml` 会把饭米粒、PostgreSQL、Auth、API 和文件存储纳入**同一个 Compose 项目**。安装者不需要单独运行 `scripts/setup-local-supabase.sh`，也不需要手填 URL 或 Key。
+
+> 全新下载的项目还没有 `.runtime/local-supabase`，所以第一次不要直接执行 `docker compose up`；先运行一次 `./start.sh`。Supabase 由多个职责独立的容器组成，但都属于这一套 Compose，不是塞进饭米粒应用容器。
+
+首次初始化完成后，整套服务可以统一管理：
 
 ```bash
-./scripts/setup-local-supabase.sh
+docker compose ps
+docker compose stop
+docker compose up -d
 ```
 
-脚本会自动识别局域网 IP、生成独立密钥、启动官方 Supabase Docker 服务、创建表并启动应用。打开终端显示的地址；第一次进入时创建家庭管理员。
-
-管理员可以继续邀请家人。每位家人使用自己的账号申请加入，管理员确认后才进入同一个家庭空间；群聊、定向任务、完成反馈和资料会在家庭成员之间同步。
+打开终端显示的地址；第一次进入时创建家庭管理员。管理员可以继续邀请家人，每位家人使用自己的账号申请加入，管理员确认后才进入同一个家庭空间；群聊、定向任务、完成反馈和资料会在家庭成员之间同步。
 
 如果 NAS 有多个网卡，可明确指定：
 
 ```bash
-FAMILY_APP_HOST=192.168.1.20 ./scripts/setup-local-supabase.sh
+FAMILY_APP_HOST=192.168.1.20 ./start.sh
 ```
 
 同一局域网中的手机和电脑都能访问。应用从局域网地址打开时自动连接同一台 NAS 的 Supabase；从公网域名打开时使用单独配置的公网 HTTPS 地址。详细配置见[本地 Supabase 部署](docs/self-hosted-supabase.md)。
 
 公网地址可以留空。设置中的“自动”模式会分别检测可用连接并选择更快的一条；局域网地址来自构建环境，仍可在页面修改。
+
+### 仅体验界面
+
+不启用 Supabase、登录和家庭成员功能：
+
+```bash
+docker compose -f docker-compose.app.yml up --build -d
+```
+
+打开 [http://localhost:3000](http://localhost:3000)。该方式使用本地文件存储，只适合本机或可信局域网，不要原样暴露到公网。
 
 ## AI 怎么选？
 

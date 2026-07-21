@@ -564,6 +564,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sessionRole, setSessionRole] = useState<"admin" | "member" | null>(null);
   const [accountSettingsToken, setAccountSettingsToken] = useState(0);
+  const [aiConnectedToken, setAiConnectedToken] = useState(0);
   const [composerResumeToken, setComposerResumeToken] = useState(0);
   const currentMemberName = avatarProfile.displayName || defaultCurrentMemberName;
   const displayMembers = useMemo(
@@ -681,12 +682,14 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
 
   async function handleSignOutAccount() {
     if (isLocalFamilyAuth()) {
-      await fetch("/api/auth/logout", { method: "POST" });
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) return;
     } else if (supabase) {
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) return;
     }
     await clearLocalResourceCache();
-    window.location.reload();
+    window.location.replace("/");
   }
 
   useEffect(() => {
@@ -1692,6 +1695,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
       <CaptureComposer
         accountSettingsToken={accountSettingsToken}
         activeTab={activeTab}
+        aiConnectedToken={aiConnectedToken}
         avatarProfile={avatarProfile}
         avatarSeed={avatarSeed}
         resumeFocusToken={composerResumeToken}
@@ -1714,6 +1718,10 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
         isFamilyAdmin={sessionRole === "admin"}
         members={displayMembers}
         open={settingsOpen}
+        onAiConnected={() => {
+          closeSettings();
+          setAiConnectedToken((value) => value + 1);
+        }}
         onClose={closeSettings}
         onOpen={openSettings}
         onOpenAccount={() => setAccountSettingsToken((value) => value + 1)}
@@ -2882,6 +2890,7 @@ async function copyTextToClipboard(text: string) {
 type CaptureComposerProps = {
   accountSettingsToken: number;
   activeTab: string;
+  aiConnectedToken: number;
   avatarProfile: MemberAvatarProfile;
   avatarSeed: string;
   members: FamilyMember[];
@@ -2954,7 +2963,7 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
   return debouncedValue;
 }
 
-function CaptureComposer({ accountSettingsToken, activeTab, avatarProfile, avatarSeed, members, onAvatarSettingsSave, onAutomationRecords, onCreateGroupChatTask, onOpenRelatedRecord, onQuickCapture, onUploadResources, records, resumeFocusToken, suspended }: CaptureComposerProps) {
+function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, avatarProfile, avatarSeed, members, onAvatarSettingsSave, onAutomationRecords, onCreateGroupChatTask, onOpenRelatedRecord, onQuickCapture, onUploadResources, records, resumeFocusToken, suspended }: CaptureComposerProps) {
   const currentMemberName = avatarProfile.displayName || defaultCurrentMemberName;
 
   function runAutomationAction(
@@ -3052,7 +3061,7 @@ function CaptureComposer({ accountSettingsToken, activeTab, avatarProfile, avata
       polling = true;
       try {
         const query = knowledgeSyncCursorRef.current ? `?after=${encodeURIComponent(knowledgeSyncCursorRef.current)}` : "";
-        const response = await fetch(`/api/knowledge-inquiries${query}`, { cache: "no-store" });
+        const response = await familyFetch(`/api/knowledge-inquiries${query}`, { cache: "no-store" });
         if (!response.ok) return;
         const payload = await response.json() as { inquiries?: SyncedKnowledgeInquiry[]; nextCursor?: string };
         const inquiries = (payload.inquiries || []).slice().sort((left, right) => left.updatedAt.localeCompare(right.updatedAt));
@@ -3155,6 +3164,27 @@ function CaptureComposer({ accountSettingsToken, activeTab, avatarProfile, avata
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     setShowAvatarSheet(true);
   }, [accountSettingsToken]);
+
+  useEffect(() => {
+    if (aiConnectedToken === 0) return;
+    const now = Date.now();
+    composerConversationDismissedRef.current = false;
+    setAutomationFeedback(null);
+    setComposerSheetOpen(true);
+    setComposerSession((session) => ({
+      ...session,
+      messages: [
+        ...session.messages,
+        {
+          id: `assistant-ai-connected-${now}`,
+          role: "assistant",
+          state: "done",
+          text: "我好像有点聪明了"
+        } satisfies ComposerChatMessage
+      ].slice(-12),
+      updatedAt: now
+    }));
+  }, [aiConnectedToken]);
 
   useEffect(() => {
     if (!suspended) {

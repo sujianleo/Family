@@ -1,19 +1,23 @@
 %%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 28, "rankSpacing": 34}}}%%
 flowchart TB
+  START["运行 ./start.sh"]
+  BOOT["自动识别局域网地址<br/>生成本机独立密钥"]
+  READY["自动启动 Supabase、建表<br/>并构建饭米粒"]
   DEVICE["手机 / 平板 / 电脑"]
   APP["饭米粒页面<br/>NAS :3000"]
   PICK{"当前访问地址"}
   HOME["局域网访问"]
   AWAY["公网访问"]
-  LAN["当前 NAS<br/>数据端口 8000　"]
+  LAN["NAS 数据接口<br/>端口 8000"]
   PUBLIC["已配置的<br/>公网数据接口"]
   PROXY["HTTPS 反向代理"]
-  API["本地 Supabase　<br/>数据接口"]
+  API["本地数据服务<br/>Supabase API"]
   AUTH["Auth<br/>家庭账号"]
   DB["Postgres<br/>家庭数据"]
   STORAGE["Storage<br/>家庭文件"]
-  SERVER["Next.js 服务端<br/>使用内部地址"]
+  SERVER["Next.js 服务端<br/>内部连接"]
 
+  START --> BOOT --> READY --> APP
   DEVICE --> APP
   APP --> PICK
   PICK --> HOME
@@ -32,6 +36,6 @@ flowchart TB
   classDef device fill:#F2F7F4,stroke:#7FA395,color:#20302A,stroke-width:2px;
   classDef route fill:#FFF7EC,stroke:#C49A64,color:#4A3823,stroke-width:2px;
   classDef service fill:#F5F2FF,stroke:#9584C5,color:#30264B,stroke-width:2px;
-  class DEVICE,APP device;
+  class START,BOOT,READY,DEVICE,APP device;
   class PICK,HOME,AWAY,LAN,PUBLIC,PROXY route;
   class SERVER,API,AUTH,DB,STORAGE service;

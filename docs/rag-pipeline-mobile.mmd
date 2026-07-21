@@ -1,0 +1,21 @@
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 24, "rankSpacing": 30}}}%%
+flowchart TB
+  Q["家庭问题"] --> PLAN["选择检索计划"]
+  PLAN --> SCOPE["限制家庭范围与时间"]
+  SCOPE --> SOURCE["构建候选来源"]
+  SOURCE --> TRUST["过滤可信来源与确认状态"]
+  TRUST --> FOLD["折叠任务生命周期"]
+  FOLD --> TERMS["扩展查询词与家庭概念"]
+  TERMS --> SCORE["匹配度 + 来源 + 时效评分"]
+  SCORE --> TOP["最多选择 12 条证据"]
+  TOP --> LLM["LangChain 生成回答"]
+  LLM --> CONTRACT["返回依据与执行声明"]
+  CONTRACT --> VERIFY["服务端本地验证"]
+  VERIFY --> ANSWER["带依据回答<br/>或明确未查到"]
+
+  classDef source fill:#F2F7F4,stroke:#7FA395,color:#20302A,stroke-width:2px;
+  classDef filter fill:#FFF7EC,stroke:#C49A64,color:#4A3823,stroke-width:2px;
+  classDef answer fill:#F5F2FF,stroke:#9584C5,color:#30264B,stroke-width:2px;
+  class Q,PLAN,SCOPE,SOURCE source;
+  class TRUST,FOLD,TERMS,SCORE,TOP filter;
+  class LLM,CONTRACT,VERIFY,ANSWER answer;

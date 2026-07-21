@@ -1,0 +1,17 @@
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "system-ui, sans-serif", "primaryColor": "#F2F7F4", "primaryTextColor": "#20302A", "primaryBorderColor": "#7FA395", "lineColor": "#607A70", "secondaryColor": "#FFF7EC", "tertiaryColor": "#F5F2FF"}, "flowchart": {"curve": "basis", "nodeSpacing": 24, "rankSpacing": 30}}}%%
+flowchart TB
+  EVENT["任务 / 群聊 / 家庭事件"] --> STORE["通知规则与偏好"]
+  STORE --> QUEUE["通知队列"]
+  DEVICE["浏览器授权与订阅"] --> ENDPOINT["设备订阅端点"]
+  QUEUE --> DISPATCH["本地派发器 / Edge Function"]
+  ENDPOINT --> DISPATCH
+  DISPATCH --> PUSH["Web 推送"]
+  PUSH --> SW["后台服务"]
+  SW --> UI["系统通知与深链接"]
+
+  classDef event fill:#F2F7F4,stroke:#7FA395,color:#20302A,stroke-width:2px;
+  classDef process fill:#FFF7EC,stroke:#C49A64,color:#4A3823,stroke-width:2px;
+  classDef output fill:#F5F2FF,stroke:#9584C5,color:#30264B,stroke-width:2px;
+  class EVENT,DEVICE event;
+  class STORE,QUEUE,ENDPOINT,DISPATCH process;
+  class PUSH,SW,UI output;

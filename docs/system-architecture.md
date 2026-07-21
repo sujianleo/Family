@@ -21,21 +21,9 @@
 
 ## 2. 系统上下文
 
-```mermaid
-flowchart LR
-    MEMBER["家庭成员"] --> WEB["Responsive Web / PWA"]
-    GUEST["临时访客"] --> GUEST_UI["受限群聊入口"]
+![系统上下文](assets/system-context-mobile.png)
 
-    WEB --> NEXT["Next.js 应用"]
-    GUEST_UI --> NEXT
-
-    NEXT --> CORE["确定性业务核心"]
-    CORE --> SUPABASE["Supabase：DB / Auth / Storage"]
-    CORE --> FILES["本地文件模式：data/"]
-    CORE --> PUSH["Web Push / 通知"]
-    CORE -. "可选" .-> MODEL["DeepSeek / OpenAI API"]
-    CORE -. "可选" .-> SPEECH["语音转写 / 文档解析"]
-```
+[Mermaid 源文件](system-context-mobile.mmd)
 
 主要运行单元：
 
@@ -154,38 +142,9 @@ Pipeline 只能组合注册表中已知步骤。模型可以推荐一个 Action/
 
 ## 4. 一条自然语言输入怎样执行
 
-```mermaid
-sequenceDiagram
-    participant U as 用户
-    participant UI as record-list.tsx
-    participant R as assistantRouter
-    participant API as Route Handler
-    participant E as eventStore
-    participant C as confirmationGate
-    participant X as automationRunner
-    participant D as Data Layer
+![自然语言输入执行链](assets/assistant-execution-mobile.png)
 
-    U->>UI: 输入自然语言或选择附件
-    UI->>R: 本地规则与白名单匹配
-    alt 本地可以确定
-        R-->>UI: 结构化 Action/Pipeline 候选
-    else 需要模型增强
-        R->>API: /api/assistant-route
-        API-->>UI: 受约束结构化结果
-    end
-    UI->>API: /api/automation-actions
-    API->>E: 写 raw event / interpretation
-    API->>C: 校验是否需要确认
-    alt 等待确认
-        C-->>UI: waiting_confirmation + 签名 token
-        U->>UI: 确认原始参数
-        UI->>API: 原参数 + confirmation token
-    end
-    API->>X: 执行白名单 Action/Pipeline
-    X->>D: 写入业务数据
-    X->>E: 写 automation run
-    API-->>UI: 结构化显示结果
-```
+[Mermaid 源文件](assistant-execution-mobile.mmd)
 
 路由顺序强调确定性优先：
 
@@ -275,21 +234,9 @@ LangChain 在这里是“受约束的增强层”，不是系统总调度器。
 
 ### 6.1 RAG 执行链
 
-```mermaid
-flowchart TD
-    Q["家庭问题"] --> PLAN["selectFamilyRetrievalPlan"]
-    PLAN --> SCOPE["家庭范围 + 时间窗口"]
-    SCOPE --> SOURCE["buildSummarySource"]
-    SOURCE --> TRUST["可信来源与确认状态过滤"]
-    TRUST --> FOLD["任务生命周期折叠"]
-    FOLD --> TERMS["查询词与家庭概念扩展"]
-    TERMS --> SCORE["匹配度 + 来源权重 + 时效评分"]
-    SCORE --> TOP["最多 12 条证据"]
-    TOP --> LLM["LangChain conversation_only"]
-    LLM --> CONTRACT["grounding + evidenceIds + executionClaims"]
-    CONTRACT --> VERIFY["服务端本地验证"]
-    VERIFY --> ANSWER["带依据回答或明确未查到"]
-```
+![家庭检索与回答链](assets/rag-pipeline-mobile.png)
+
+[Mermaid 源文件](rag-pipeline-mobile.mmd)
 
 ### 6.2 检索计划
 
@@ -518,17 +465,9 @@ raw_events
 
 ## 11. 资料解析与健康关注链路
 
-```mermaid
-flowchart TD
-    UPLOAD["上传 PDF / 图片 / 文档"] --> ORIGINAL["保存原始文件"]
-    ORIGINAL --> EXTRACT["文本提取 / OCR / 文档解析"]
-    EXTRACT --> INSIGHT["resourceInsights：结构化洞察"]
-    INSIGHT --> EVENT["记录 resource_parsed 事件与来源"]
-    EVENT --> CONTEXT["trustedAssistantContext 选择可信证据"]
-    CONTEXT --> ANSWER["带来源的家庭问答"]
-    INSIGHT --> CANDIDATE["健康跟进任务候选"]
-    CANDIDATE --> CONFIRM["家庭成员确认"]
-```
+![资料解析与健康关注链](assets/resource-insight-mobile.png)
+
+[Mermaid 源文件](resource-insight-mobile.mmd)
 
 关键文件：
 
@@ -609,17 +548,9 @@ Node.js 运行时通过 `apps/web/src/instrumentation.ts` 启动：
 
 ## 15. 通知架构
 
-```mermaid
-flowchart LR
-    EVENT["任务 / 群聊 / 家庭事件"] --> STORE["notificationStore"]
-    STORE --> QUEUE["notifications"]
-    DEVICE["浏览器订阅"] --> ENDPOINT["notification_endpoints"]
-    QUEUE --> DISPATCH["本地派发器 / Edge Function"]
-    ENDPOINT --> DISPATCH
-    DISPATCH --> PUSH["Web Push"]
-    PUSH --> SW["Service Worker"]
-    SW --> UI["系统通知 / 深链接"]
-```
+![通知投递链](assets/notification-pipeline-mobile.png)
+
+[Mermaid 源文件](notification-pipeline-mobile.mmd)
 
 相关表：
 

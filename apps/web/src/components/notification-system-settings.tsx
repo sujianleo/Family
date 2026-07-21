@@ -51,7 +51,7 @@ export function NotificationSystemSettings() {
       const sentTestNow = await showFirstSystemNotificationTest(registration);
       if (sentTestNow) setTestSent(true);
       if (!publicKey) {
-        setMessage(sentTestNow ? "测试通知已发送。App 运行时会在任务到点后提醒你。" : "系统通知已开启，App 运行时会在任务到点后提醒你。");
+        setMessage(sentTestNow ? "测试通知已发送。" : "通知已开启。");
         return;
       }
       const subscription = await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({
@@ -73,7 +73,7 @@ export function NotificationSystemSettings() {
       }
       setSubscribed(true);
       const backgroundTestSent = await sendFirstBackgroundPushTest();
-      setMessage(backgroundTestSent ? "后台测试通知已发送；离开 App 后也能收到提醒。" : sentTestNow ? "测试通知已发送，当前设备的系统通知已开启。" : "当前设备的系统通知已开启。");
+      setMessage(backgroundTestSent ? "后台通知测试已发送。" : sentTestNow ? "测试通知已发送。" : "通知已开启。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "系统通知订阅失败，App 内通知仍可使用。");
     } finally {
