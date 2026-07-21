@@ -72,10 +72,12 @@ const safeMetadataKeys = new Set([
   "operation",
   "pipelineId",
   "promptTokens",
+  "reason",
   "resultStatus",
   "routeId",
   "routeKind",
   "sideEffectLevel",
+  "stage",
   "sent",
   "stepCount",
   "totalTokens"
