@@ -7987,12 +7987,12 @@ function TaskActionSheet({
         </div>
         <div className="personal-task-actions">
           <button
-            aria-label={record.status === "done" ? "任务已完成，关闭详情" : "完成任务"}
+            aria-label={record.status === "done" ? "复原为待办" : "完成任务"}
             className="primary"
             type="button"
-            onClick={record.status === "done" ? onClose : onComplete}
+            onClick={onComplete}
           >
-            {record.status === "done" ? "已完成" : "完成"}
+            {record.status === "done" ? "复原为待办" : "完成"}
           </button>
           <button className="danger" type="button" onClick={onDelete}>删除</button>
         </div>

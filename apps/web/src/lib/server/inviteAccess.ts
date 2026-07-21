@@ -294,8 +294,10 @@ async function resolveActor(service: NonNullable<ReturnType<typeof createService
     service.from("families").select("created_by").eq("id", familyId).maybeSingle()
   ]);
   if (error) throw new InviteAccessError("无法确认邀请人身份。", 503);
-  if (!data?.id || !data.user_id) throw new InviteAccessError("只有已绑定账号的家庭成员可以邀请。", 403);
-  return { displayName: data.display_name, isOwner: data.role === "owner" || family?.created_by === data.user_id, memberId: data.id, userId: data.user_id };
+  if (!data?.id) throw new InviteAccessError("只有家庭成员可以邀请。", 403);
+  const userId = data.user_id || (process.env.FAMILY_APP_ALLOW_UNBOUND_INVITE_ACTORS === "true" ? family?.created_by : null);
+  if (!userId) throw new InviteAccessError("只有已绑定账号的家庭成员可以邀请。", 403);
+  return { displayName: data.display_name, isOwner: data.role === "owner" || family?.created_by === userId, memberId: data.id, userId };
 }
 
 async function resolveTarget(service: NonNullable<ReturnType<typeof createServiceSupabaseClient>>, type: InviteType, familyId: string, targetId: string | undefined, actorMemberId: string) {
