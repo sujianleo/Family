@@ -14,8 +14,12 @@ export type AssistantRouteShadowRecord = {
   durationMs: number;
   executedRoute: AssistantRoute;
   failureReason?: string;
+  initialModelContract?: AssistantRouteContract | null;
   modelName: string;
   promptVersion: string;
+  reflectedModelContract?: AssistantRouteContract | null;
+  reflectionChanged?: boolean;
+  reflectionReason?: string;
   safeForFallbackPromotion: boolean;
   reviewedCorrect?: boolean;
 };
@@ -39,8 +43,12 @@ export async function appendAssistantRouteShadowRecord(
     durationMs: input.durationMs,
     executedRoute: input.executedRoute,
     failureReason: input.failureReason,
+    initialModelContract: input.initialModelContract,
     modelName: input.modelName,
     promptVersion: input.promptVersion,
+    reflectedModelContract: input.reflectedModelContract,
+    reflectionChanged: input.reflectionChanged,
+    reflectionReason: input.reflectionReason,
     safeForFallbackPromotion: input.safeForFallbackPromotion
   };
   await mkdir(dataDir, { recursive: true });
@@ -90,6 +98,8 @@ async function writeAiQualitySummary(dataDir: string) {
   const records = await readRecords(dataDir);
   const failures = records.filter((record) => record.disagreement === "model_failed");
   const disagreements = records.filter((record) => record.disagreement !== "none" && record.disagreement !== "model_failed");
+  const reflections = records.filter((record) => Boolean(record.reflectionReason));
+  const changedReflections = reflections.filter((record) => record.reflectionChanged);
   const promotion = await readAssistantRoutePromotionStatus(dataDir);
   let current: Record<string, unknown> = {};
   try {
@@ -104,6 +114,8 @@ async function writeAiQualitySummary(dataDir: string) {
       total: records.length,
       disagreementRate: records.length ? disagreements.length / records.length : 0,
       modelFailureRate: records.length ? failures.length / records.length : 0,
+      reflectionRate: records.length ? reflections.length / records.length : 0,
+      reflectionChangeRate: reflections.length ? changedReflections.length / reflections.length : 0,
       averageLatencyMs: records.length ? Math.round(records.reduce((sum, record) => sum + record.durationMs, 0) / records.length) : 0,
       ...promotion
     }

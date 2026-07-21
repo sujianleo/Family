@@ -32,7 +32,7 @@ import { deleteFamilyRecord, enqueueFamilyRecord, requestAssignmentSuggestion, r
 import { RESOURCE_UPLOAD_ACCEPT, RESOURCE_UPLOAD_MAX_LABEL, isAnalyzableDocumentFile, validateResourceUploadFile } from "@/lib/resourceUploadPolicy";
 import { parseResourceParsePresentation } from "@/lib/resourceParsePresentation";
 import { isPwaInstallCommand, PWA_INSTALL_REQUEST_EVENT } from "@/lib/pwaInstallRequest";
-import { extractTaskTimeMentions, isOpenVolunteerQuestion as isOpenVolunteerTaskQuestion, isSummaryRequestText, isTimedTaskStatement, normalizeTaskTitle, parseTaskReminder, shouldSuggestTaskFromText } from "@/lib/taskIntent";
+import { extractTaskTimeMentions, isAmbiguousOrganizationRequest, isOpenVolunteerQuestion as isOpenVolunteerTaskQuestion, isTimedTaskStatement, normalizeTaskTitle, parseTaskReminder, shouldSuggestTaskFromText } from "@/lib/taskIntent";
 import { formatTaskListDateTime } from "@/lib/taskDisplayTime";
 import { useChatPresence } from "@/lib/useChatPresence";
 import { AvatarImage, MemberAvatar, familyAvatarSeeds, resolveMemberAvatarSeed } from "./avatar";
@@ -8564,7 +8564,7 @@ function classifyLifeLogIntent(text: string, assistantText: string): LifeLogInte
     intents.add("search");
   }
 
-  if (isSummaryRequestText(normalized)) {
+  if (/(总结|汇总|复盘|日报|周报|月报)/.test(normalized) || isAmbiguousOrganizationRequest(normalized)) {
     intents.add("summary_request");
   }
 
