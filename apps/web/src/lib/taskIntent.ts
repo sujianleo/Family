@@ -222,6 +222,21 @@ export function shouldSuggestTaskFromText(text: string, context: TaskIntentConte
   return isExplicitTaskCommand(normalized);
 }
 
+export function isSummaryRequestText(text: string) {
+  const normalized = normalizeInput(text)
+    .replace(/^(?:请|麻烦|帮我|给我)\s*/, "")
+    .replace(/[。.!！?？]+$/, "")
+    .trim();
+  if (!normalized) {
+    return false;
+  }
+  if (/(?:总结|汇总|复盘|日报|周报|月报)/.test(normalized)) {
+    return true;
+  }
+  return /^(?:整理|梳理)(?:一下|下)?(?:今天|今日|本周|这周|本月|这个月)(?:的?(?:记录|事情|内容|动态|情况|生活|日程|待办|任务))?$/.test(normalized) ||
+    /^(?:今天|今日|本周|这周|本月|这个月)(?:的?(?:记录|事情|内容|动态|情况|生活|日程|待办|任务))?(?:整理|梳理)(?:一下|下)?$/.test(normalized);
+}
+
 export function isTimedTaskStatement(text: string) {
   const normalized = normalizeInput(text);
   const timeMentions = extractTaskTimeMentions(normalized);
@@ -229,6 +244,9 @@ export function isTimedTaskStatement(text: string) {
     return false;
   }
   if (/[?？]$/.test(normalized) || /呢$/.test(normalized) || /(几点|什么时候|怎么|怎样|如何|为什么|为啥|是否|吗|么)/.test(normalized)) {
+    return false;
+  }
+  if (isSummaryRequestText(normalized)) {
     return false;
   }
   if (isAmbientConditionStatement(normalized) && !isExplicitTaskCommand(normalized)) {
