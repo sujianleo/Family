@@ -300,9 +300,9 @@ export async function DELETE(request: Request) {
   try {
     const context = await requireFamilyRequestContext(request);
     const body = (await request.json().catch(() => ({}))) as { id?: unknown };
-    const id = normalizeUuid(body.id);
-    if (!id) {
-      return NextResponse.json({ detail: "缺少有效记录 ID。" }, { status: 400 });
+    const requestedId = readString(body.id);
+    if (!requestedId) {
+      return NextResponse.json({ detail: "缺少记录 ID。" }, { status: 400 });
     }
 
     if (!supabaseUrl || !supabaseServiceRoleKey || !context.familyId) {
@@ -310,27 +310,44 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ detail: "生产环境必须配置 Supabase 存储。" }, { status: 503 });
       }
       const records = await readFallbackRecords();
-      const remainingRecords = records.filter((record) => record.id !== id);
+      const remainingRecords = records.filter((record) => record.id !== requestedId);
       if (remainingRecords.length !== records.length) {
         await writeFallbackRecords(remainingRecords);
       }
-      return NextResponse.json({ deleted: remainingRecords.length !== records.length, id });
+      return NextResponse.json({ deleted: true, deletedCount: records.length - remainingRecords.length, id: requestedId });
     }
 
     const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
       auth: { persistSession: false }
     });
+    const uuid = normalizeUuid(requestedId);
+    let targetIds = uuid ? [uuid] : [];
+    if (!uuid) {
+      const { data: legacyRecords, error: legacyReadError } = await supabase
+        .from("family_records")
+        .select("id")
+        .eq("family_id", context.familyId)
+        .eq("metadata->>recordId", requestedId);
+      if (legacyReadError) {
+        return NextResponse.json({ detail: legacyReadError.message }, { status: 500 });
+      }
+      targetIds = (legacyRecords || []).map((record) => record.id);
+    }
+    if (!targetIds.length) {
+      // Deletion is idempotent. Old local-only resources have no Supabase row,
+      // but the client must still be allowed to remove them permanently.
+      return NextResponse.json({ deleted: true, deletedCount: 0, id: requestedId });
+    }
     const { data, error } = await supabase
       .from("family_records")
       .delete()
-      .eq("id", id)
       .eq("family_id", context.familyId)
-      .select("id")
-      .maybeSingle();
+      .in("id", targetIds)
+      .select("id");
     if (error) {
       return NextResponse.json({ detail: error.message }, { status: 500 });
     }
-    return NextResponse.json({ deleted: Boolean(data?.id), id });
+    return NextResponse.json({ deleted: true, deletedCount: data?.length || 0, id: requestedId });
   } catch (error) {
     if (error instanceof FamilyRequestContextError) {
       return NextResponse.json({ detail: error.message }, { status: error.status });

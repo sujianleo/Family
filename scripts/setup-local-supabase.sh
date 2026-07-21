@@ -110,6 +110,33 @@ ensure_vapid_keys() {
   fi
 }
 
+apply_schema_migrations() {
+  migrations_dir="$PROJECT_ROOT/supabase/migrations"
+  [ -d "$migrations_dir" ] || return
+  (cd "$PROJECT_ROOT" && docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d postgres) <<'SQL'
+create table if not exists public.family_schema_migrations (
+  id text primary key,
+  applied_at timestamptz not null default now()
+);
+alter table public.family_schema_migrations enable row level security;
+SQL
+  for migration in "$migrations_dir"/*.sql; do
+    [ -f "$migration" ] || continue
+    migration_id=$(basename "$migration")
+    case "$migration_id" in
+      *[!A-Za-z0-9._-]*) printf '迁移文件名包含不支持的字符：%s\n' "$migration_id" >&2; exit 1 ;;
+    esac
+    applied=$(cd "$PROJECT_ROOT" && docker compose exec -T db psql -U postgres -d postgres -Atqc "select count(*) from public.family_schema_migrations where id = '$migration_id'")
+    [ "$applied" = "1" ] && continue
+    printf '正在应用数据库迁移：%s\n' "$migration_id"
+    {
+      printf 'begin;\n'
+      cat "$migration"
+      printf "\ninsert into public.family_schema_migrations(id) values ('%s');\ncommit;\n" "$migration_id"
+    } | (cd "$PROJECT_ROOT" && docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d postgres)
+  done
+}
+
 default_db_config_volume_name() {
   compose_project=${COMPOSE_PROJECT_NAME:-$(basename "$PROJECT_ROOT")}
   normalized_project=$(printf '%s' "$compose_project" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/-/g; s/^[^a-z0-9]*//')
@@ -264,6 +291,7 @@ if [ "$SCHEMA_EXISTS" != "t" ]; then
   printf '正在创建家庭数据库…\n'
   (cd "$PROJECT_ROOT" && docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d postgres) < "$PROJECT_ROOT/supabase/schema.sql"
 fi
+apply_schema_migrations
 
 printf '\n部署完成：%s\n' "$APP_LAN_URL"
 printf '同一局域网的手机或电脑可直接打开。首次进入会创建家庭管理员。\n'

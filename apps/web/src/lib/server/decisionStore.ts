@@ -239,14 +239,16 @@ export async function markDecisionAdopted(context: Context, id: string, taskId: 
   await traceDecision(context, "decision_adopted", id, "", { taskId });
 }
 
-export async function closeDueFamilyDecisions(now = new Date()) {
+export async function closeDueFamilyDecisions(now = new Date(), familyId = "") {
   const client = createServiceSupabaseClient() as any;
   if (!client) {
-    const due = (await readFallback()).filter((item) => item.status === "open" && new Date(item.closesAt) <= now);
+    const due = (await readFallback()).filter((item) => (!familyId || item.familyId === familyId) && item.status === "open" && new Date(item.closesAt) <= now);
     for (const item of due) await closeFamilyDecision({ familyId: item.familyId, memberId: item.creatorMemberId }, item.id, "deadline", true);
     return due.map((item) => item.id);
   }
-  const { data, error } = await client.from("family_decisions").select("id,family_id,creator_member_id").eq("status", "open").lte("closes_at", now.toISOString()).limit(100);
+  let query = client.from("family_decisions").select("id,family_id,creator_member_id").eq("status", "open").lte("closes_at", now.toISOString());
+  if (familyId) query = query.eq("family_id", familyId);
+  const { data, error } = await query.limit(100);
   if (error) throw error;
   for (const item of data || []) await closeFamilyDecision({ familyId: item.family_id, memberId: item.creator_member_id }, item.id, "deadline", true);
   return (data || []).map((item: { id: string }) => item.id);

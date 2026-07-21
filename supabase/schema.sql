@@ -387,7 +387,7 @@ begin
   if jsonb_array_length(option_labels) < 2 or jsonb_array_length(option_labels) > 8 then raise exception '家庭决定需要 2 到 8 个选项。'; end if;
   select * into room_row from public.family_records
   where id = target_room_record_id and family_id = target_family_id for update;
-  if room_row.id is null or not (room_row.tags && array['群组', '群聊']) or coalesce(room_row.metadata->>'inviteLink', '') = '' then raise exception '群聊不存在。'; end if;
+  if room_row.id is null or not (room_row.tags && array['群组', '群聊']) then raise exception '群聊不存在。'; end if;
   if not exists (select 1 from public.family_members where id = actor_member_id and family_id = target_family_id) then raise exception '发起人不属于当前家庭。'; end if;
   if actor_member_id::text <> all(array(select jsonb_array_elements_text(coalesce(room_row.metadata->'chatMembers', '[]'::jsonb)))) then raise exception '发起人不是群聊成员。'; end if;
   insert into public.family_decisions(family_id, room_record_id, creator_member_id, question, closes_at, source_text)

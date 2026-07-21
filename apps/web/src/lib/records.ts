@@ -81,7 +81,9 @@ export async function deleteFamilyRecord(id: string) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ id })
   });
-  return res.ok;
+  if (!res.ok) return false;
+  const body = await res.json().catch(() => null) as { deleted?: unknown } | null;
+  return body?.deleted === true;
 }
 
 function normalizeSupabaseId(value: string) {

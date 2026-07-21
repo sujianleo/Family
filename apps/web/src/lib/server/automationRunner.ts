@@ -1091,7 +1091,7 @@ async function createMemorySaveCandidateAction(actionId: AutomationActionId, opt
       sourceType: "memory.confirmed"
     });
     const record: FamilyRecord = {
-      id: `resource-${memoryId}`,
+      id: crypto.randomUUID(),
       kind: "note",
       title: memoryTitle(candidate.memoryType, candidate.subject, candidate.fact),
       summary: content,
