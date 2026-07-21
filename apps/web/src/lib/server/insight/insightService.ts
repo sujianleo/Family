@@ -92,6 +92,35 @@ export async function findCachedInsight(
     ) || null;
 }
 
+export async function listStoredInsights(
+  familyId: string,
+  limit = 7,
+  dataDir = "data"
+): Promise<StoredInsight[]> {
+  const boundedLimit = Math.max(1, Math.min(31, limit));
+  const supabase = createServiceSupabaseClient();
+  if (supabase && isUuid(familyId)) {
+    const { data, error } = await supabase
+      .from("summaries")
+      .select("id, created_at, model_name, prompt_version, summary_json")
+      .eq("family_id", familyId)
+      .contains("summary_json", { kind: "family_insight" })
+      .order("created_at", { ascending: false })
+      .limit(boundedLimit);
+    if (!error && Array.isArray(data)) {
+      return data.map(parseStoredInsight).filter((record): record is StoredInsight => record !== null);
+    }
+  }
+
+  const rows = await readJsonl(`${dataDir}/summaries.jsonl`);
+  return rows
+    .filter((row) => matchesFamily(row, familyId))
+    .map(parseStoredInsight)
+    .filter((record): record is StoredInsight => record !== null)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .slice(0, boundedLimit);
+}
+
 export async function storeInsight(input: {
   batch: InsightBatch;
   capability: InsightCapability;
