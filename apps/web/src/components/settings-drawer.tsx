@@ -9,6 +9,7 @@ import { normalizeFamilyRelationshipLabel } from "@/lib/familyRelationships";
 import { calculateMemberAge, formatMemberBirthDateInput, memberBirthDatePickerMax, parseMemberBirthDateInput } from "@/lib/memberProfileAge";
 import { useHomeDrawerSwipe } from "@/lib/homeDrawerGesture";
 import { buildConnectivityTarget, buildLanConnectivityTarget, isCompleteLanAddress, selectFastestNetwork } from "@/lib/networkConnectivity";
+import { clearStoredNetworkAddressesOnce } from "@/lib/clientPrivacyMigrations";
 import { usePageScrollLock } from "@/lib/pageScrollLock";
 import { NotificationSystemSettings } from "./notification-system-settings";
 import type { FamilyMember, MemberProfile } from "@/lib/types";
@@ -467,7 +468,7 @@ export function SettingsDrawer({ currentMemberId, isFamilyAdmin, members, open, 
   const [activeNetwork, setActiveNetwork] = useState<ActiveNetwork>(null);
   const [serverUrl, setServerUrl] = useState("");
   const [serverPort, setServerPort] = useState("");
-  const [lanIp, setLanIp] = useState("192.168.");
+  const [lanIp, setLanIp] = useState("");
   const [internetConnectivity, setInternetConnectivity] = useState<ConnectivityTest>({ status: "idle" });
   const [lanConnectivity, setLanConnectivity] = useState<ConnectivityTest>({ status: "idle" });
   const [providers, setProviders] = useState<AiProvider[]>(defaultProviders);
@@ -516,6 +517,7 @@ export function SettingsDrawer({ currentMemberId, isFamilyAdmin, members, open, 
 
   useEffect(() => {
     try {
+      clearStoredNetworkAddressesOnce(localStorage);
       const stored = JSON.parse(localStorage.getItem(storageKey) || "{}") as Partial<{
         themeFamily: ThemeFamily;
         themeMode: ThemeMode;

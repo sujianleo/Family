@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState, type ReactNode } from "react";
+import { clearStoredNetworkAddressesOnce } from "@/lib/clientPrivacyMigrations";
 import styles from "./onboarding-gate.module.css";
 
 const onboardingStorageKey = "family-app.onboarding.v1";
@@ -54,6 +55,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     setInstallPlatform(detectInstallPlatform());
     try {
+      clearStoredNetworkAddressesOnce(window.localStorage);
       const storedSettings = JSON.parse(window.localStorage.getItem(settingsStorageKey) || "{}") as StoredSettings;
       const storedThemeFamily = storedSettings.themeFamily === "dopamine" ? "dopamine" : "mono";
       const storedProviderKind = storedSettings.providers?.find((provider) =>
