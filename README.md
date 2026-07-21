@@ -6,6 +6,11 @@
   <img alt="Self-hosted" src="https://img.shields.io/badge/SELF--HOSTED-2F6F68?style=flat-square" />
   <img alt="AI optional" src="https://img.shields.io/badge/AI-OPTIONAL-1E514C?style=flat-square" />
   <img alt="PWA" src="https://img.shields.io/badge/PWA-6C717C?style=flat-square" />
+  <br />
+  <img alt="Next.js" src="https://img.shields.io/badge/NEXT.JS-20302A?style=flat-square" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TYPESCRIPT-2F6F68?style=flat-square" />
+  <img alt="Supabase" src="https://img.shields.io/badge/SUPABASE-4A8F7B?style=flat-square" />
+  <img alt="LangChain" src="https://img.shields.io/badge/LANGCHAIN-9584C5?style=flat-square" />
 </p>
 
 ---
