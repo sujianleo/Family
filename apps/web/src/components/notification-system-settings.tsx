@@ -54,7 +54,14 @@ export function NotificationSystemSettings() {
         setMessage(sentTestNow ? "测试通知已发送。" : "通知已开启。");
         return;
       }
-      const subscription = await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({
+      // An existing subscription may have been created with an older VAPID
+      // public key. Reusing it makes the registration API succeed while the
+      // push service rejects every delivery. An explicit registration action
+      // must therefore replace the browser subscription as well as the row on
+      // the server.
+      const existingSubscription = await registration.pushManager.getSubscription();
+      if (existingSubscription) await existingSubscription.unsubscribe();
+      const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource
       });

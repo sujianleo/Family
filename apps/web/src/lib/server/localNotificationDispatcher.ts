@@ -35,7 +35,7 @@ export async function sendLocalPushTest(memberId: string, deviceId: string, data
   if (supabase) {
     const { data: endpoint, error } = await supabase
       .from("notification_endpoints")
-      .select("id,endpoint,p256dh,auth")
+      .select("id,endpoint,p256dh,auth,failure_count")
       .eq("member_id", memberId)
       .eq("device_id", deviceId)
       .eq("channel", "web_push")
@@ -48,10 +48,13 @@ export async function sendLocalPushTest(memberId: string, deviceId: string, data
       await supabase.from("notification_endpoints").update({ failure_count: 0, last_success_at: new Date().toISOString() }).eq("id", endpoint.id);
     } catch (error) {
       const statusCode = readStatusCode(error);
-      if (statusCode === 404 || statusCode === 410) {
-        await supabase.from("notification_endpoints").update({ active: false, last_failure_at: new Date().toISOString() }).eq("id", endpoint.id);
-      }
-      throw error;
+      const invalid = statusCode === 404 || statusCode === 410;
+      await supabase.from("notification_endpoints").update({
+        active: !invalid,
+        failure_count: Number(endpoint.failure_count || 0) + 1,
+        last_failure_at: new Date().toISOString()
+      }).eq("id", endpoint.id);
+      throw new Error(describeWebPushFailure(error));
     }
     return;
   }
@@ -216,6 +219,24 @@ function shouldAttempt(attempts: LocalDeliveryRow[], now: number) {
 }
 
 function readStatusCode(error: unknown) { return typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : 0; }
+function describeWebPushFailure(error: unknown) {
+  const statusCode = readStatusCode(error);
+  const body = typeof error === "object" && error && "body" in error ? String(error.body || "") : "";
+  const reason = readWebPushReason(body);
+  if (reason === "VapidPkHashMismatch") return "通知订阅密钥已更新，请重新注册此设备。";
+  if (reason === "BadDeviceToken" || statusCode === 404 || statusCode === 410) return "当前通知订阅已经失效，请重新注册此设备。";
+  if (statusCode) return `推送服务返回 ${statusCode}${reason ? `（${reason}）` : ""}。`;
+  return error instanceof Error ? error.message : "后台通知发送失败。";
+}
+function readWebPushReason(body: string) {
+  if (!body) return "";
+  try {
+    const parsed = JSON.parse(body) as { reason?: unknown };
+    return typeof parsed.reason === "string" ? parsed.reason : "";
+  } catch {
+    return "";
+  }
+}
 function sendWebPushTest(endpoint: { endpoint: string; p256dh: string; auth: string }) {
   return webpush.sendNotification(
     { endpoint: endpoint.endpoint, keys: { p256dh: endpoint.p256dh, auth: endpoint.auth } },
