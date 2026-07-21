@@ -99,7 +99,7 @@ export async function routeAssistantWithLangChain(
     timeoutMs: routerTimeoutMs
   });
   if (!model) {
-    return semanticFallbackRoute(normalized, localRoute);
+    return assistantRouteSemanticFallback(normalized, localRoute);
   }
 
   const startedAt = Date.now();
@@ -235,7 +235,7 @@ export async function routeAssistantWithLangChain(
       confidence: 0,
       disagreement: "model_failed",
       durationMs: Date.now() - startedAt,
-      executedRoute: semanticFallbackRoute(normalized, localRoute),
+      executedRoute: assistantRouteSemanticFallback(normalized, localRoute),
       failureReason: error instanceof Error ? error.message.slice(0, 180) : "unknown_model_failure",
       inputText: normalized,
       localRoute,
@@ -245,7 +245,7 @@ export async function routeAssistantWithLangChain(
       promptVersion: routeIntentPromptVersion,
       safeForFallbackPromotion: false
     });
-    return semanticFallbackRoute(normalized, localRoute);
+    return assistantRouteSemanticFallback(normalized, localRoute);
   }
 }
 
@@ -345,7 +345,10 @@ function requiresSemanticModelResolution(text: string) {
   return isAmbiguousOrganizationRequest(normalized) || /(?:总结|汇总|复盘)/.test(normalized);
 }
 
-function semanticFallbackRoute(text: string, localRoute: AssistantRoute) {
+export function assistantRouteSemanticFallback(text: string, localRoute: AssistantRoute) {
+  if (localRoute.kind === "action" && isSummaryAction(localRoute.id)) {
+    return localRoute;
+  }
   return requiresSemanticModelResolution(text) ? clarificationFallback(text) : localRoute;
 }
 

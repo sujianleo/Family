@@ -243,7 +243,7 @@ export function isTimedTaskStatement(text: string) {
   if (/[?？]$/.test(normalized) || /呢$/.test(normalized) || /(几点|什么时候|怎么|怎样|如何|为什么|为啥|是否|吗|么)/.test(normalized)) {
     return false;
   }
-  if (/(?:总结|汇总|复盘)/.test(normalized)) {
+  if (/(?:总结|汇总|复盘|日报|周报|月报)/.test(normalized)) {
     return false;
   }
   if (isAmbiguousOrganizationRequest(normalized)) {
