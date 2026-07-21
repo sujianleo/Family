@@ -81,6 +81,18 @@ ensure_secret() {
   esac
 }
 
+select_vapid_subject() {
+  public_url=$1
+  app_url=$2
+  case "$public_url" in
+    https://*) printf '%s' "$public_url"; return ;;
+  esac
+  case "$app_url" in
+    https://*) printf '%s' "$app_url" ;;
+    *) printf '%s' "https://example.com" ;;
+  esac
+}
+
 ensure_vapid_keys() {
   target=$1
   public_key=$(read_env "$target" VAPID_PUBLIC_KEY)
@@ -105,13 +117,14 @@ ensure_vapid_keys() {
     set_env "$target" VAPID_PRIVATE_KEY "$private_key"
   fi
   set_env "$target" NEXT_PUBLIC_VAPID_PUBLIC_KEY "$public_key"
-  if [ -z "$(read_env "$target" VAPID_SUBJECT)" ]; then
-    app_url=$(read_env "$target" NEXT_PUBLIC_APP_URL)
-    case "$app_url" in
-      https://*) set_env "$target" VAPID_SUBJECT "$app_url" ;;
-      *) set_env "$target" VAPID_SUBJECT "https://example.com" ;;
-    esac
-  fi
+  current_subject=$(read_env "$target" VAPID_SUBJECT)
+  case "$current_subject" in
+    ""|https://example.com)
+      app_url=$(read_env "$target" NEXT_PUBLIC_APP_URL)
+      vapid_subject=$(select_vapid_subject "${FAMILY_APP_PUBLIC_URL:-}" "$app_url")
+      set_env "$target" VAPID_SUBJECT "$vapid_subject"
+      ;;
+  esac
 }
 
 apply_schema_migrations() {
