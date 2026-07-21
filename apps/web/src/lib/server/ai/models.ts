@@ -40,10 +40,18 @@ export async function invokeStructured<T>(
   options: LangChainJsonOptions & { tier?: ModelTier } = {}
 ): Promise<StructuredModelResult<T>> {
   const { tier = "fast", ...modelOptions } = options;
-  const raw =
-    tier === "deep"
-      ? await invokeDeepSeekDeepJson(messages, modelOptions)
-      : await invokeDeepSeekJson(messages, modelOptions);
+  let raw: unknown;
+  try {
+    raw =
+      tier === "deep"
+        ? await invokeDeepSeekDeepJson(messages, modelOptions)
+        : await invokeDeepSeekJson(messages, modelOptions);
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof SyntaxError ? "schema_invalid" : "model_unavailable"
+    };
+  }
 
   if (raw === null) {
     return {
