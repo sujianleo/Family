@@ -1,5 +1,5 @@
 <h3 align="center">
-  <img src="apps/web/public/family-logo-v2.png" alt="Family" width="120" />
+  <img src="https://raw.githubusercontent.com/sujianleo/Family/main/apps/web/public/family-logo-v2.png" alt="Family" width="120" />
 </h3>
 
 <p align="center">
