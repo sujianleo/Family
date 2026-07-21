@@ -1,5 +1,5 @@
 import type { BaseMessageLike } from "@langchain/core/messages";
-import { getDeepModel, invokeStructured } from "../ai/models";
+import { getDeepModel, invokeStructured, type StructuredModelResult } from "../ai/models";
 import { getDeepModelName } from "../langchainAi";
 import { summarySourceBuilder, type InsightSourceBundle } from "./insightBuilder";
 import { buildInsightPrompt, INSIGHT_PROMPT_VERSION } from "./insightPrompt";
@@ -28,6 +28,10 @@ export type RunFamilyInsightInput = {
 type InsightRunnerDependencies = {
   buildSource?: typeof summarySourceBuilder;
   invokeModel?: (messages: BaseMessageLike[], source: InsightSourceBundle) => Promise<unknown>;
+  invokeStructuredModel?: (
+    messages: BaseMessageLike[],
+    options: Parameters<typeof invokeStructured>[2]
+  ) => Promise<StructuredModelResult<InsightBatch>>;
 };
 
 export async function runFamilyInsight(
@@ -63,21 +67,16 @@ export async function runFamilyInsight(
   }
 
   // Resolve the deep model before building the prompt so production can never silently use Flash.
-  if (!dependencies.invokeModel && !getDeepModel({ dataDir: input.dataDir, familyId: input.familyId })) {
+  if (!dependencies.invokeModel && !dependencies.invokeStructuredModel && !getDeepModel({ dataDir: input.dataDir, familyId: input.familyId })) {
     return { ok: false as const, reason: "deep_model_unavailable" as const, skipped: true as const };
   }
   const messages: BaseMessageLike[] = [{ role: "system", content: buildInsightPrompt({ capability: input.capability, source }) }];
   const raw = dependencies.invokeModel
     ? await dependencies.invokeModel(messages, source)
-    : await invokeStructured(messages, insightBatchSchema, {
-        dataDir: input.dataDir,
-        familyId: input.familyId,
-        maxTokens: Number(process.env.DEEPSEEK_INSIGHT_MAX_TOKENS || 1200),
-        operation: input.capability,
-        temperature: 0.1,
-        tier: "deep",
-        timeoutMs: Number(process.env.DEEPSEEK_INSIGHT_TIMEOUT_MS || process.env.DEEPSEEK_TIMEOUT_MS || 15_000)
-      });
+    : await invokeInsightModel(messages, input, dependencies.invokeStructuredModel);
+  if (isStructuredResult(raw) && !raw.ok) {
+    return { ok: false as const, reason: raw.reason, skipped: true as const };
+  }
   const batch = normalizeModelResult(raw, source);
   if (!batch.insights.length) {
     const record = await storeInsight({
@@ -157,7 +156,40 @@ function containsUnsafeInference(value: string) {
   return /(?:可能|疑似|应该是|一定是).{0,10}(?:患病|生病|抑郁|焦虑|身体不好|关系不好|感情不好|有矛盾)|(?:谁对谁错|不孝|自私|懒惰|有病)/i.test(value);
 }
 
-function isStructuredResult(value: unknown): value is { ok: boolean; value?: unknown } {
+async function invokeInsightModel(
+  messages: BaseMessageLike[],
+  input: RunFamilyInsightInput,
+  invokeModel: InsightRunnerDependencies["invokeStructuredModel"] = (modelMessages, modelOptions) =>
+    invokeStructured(modelMessages, insightBatchSchema, modelOptions)
+) {
+  const options = {
+    dataDir: input.dataDir,
+    familyId: input.familyId,
+    maxTokens: Number(process.env.DEEPSEEK_INSIGHT_MAX_TOKENS || 1800),
+    operation: input.capability,
+    temperature: 0.1,
+    tier: "deep" as const,
+    timeoutMs: Number(process.env.DEEPSEEK_INSIGHT_TIMEOUT_MS || process.env.DEEPSEEK_TIMEOUT_MS || 15_000)
+  };
+  const first = await invokeModel(messages, options);
+  if (first.ok || first.reason !== "schema_invalid") return first;
+  return invokeModel(
+    [
+      ...messages,
+      {
+        role: "user",
+        content: "上一次输出不是完整合法 JSON。请缩短内容，最多返回 4 条，只输出符合 Schema 的完整 JSON。"
+      }
+    ],
+    {
+      ...options,
+      maxTokens: Math.max(options.maxTokens, 2000),
+      operation: `${input.capability}.json_retry`
+    }
+  );
+}
+
+function isStructuredResult(value: unknown): value is StructuredModelResult<InsightBatch> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value) && "ok" in value);
 }
 
