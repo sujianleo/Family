@@ -1,5 +1,5 @@
 <h3 align="center">
-  <img src="https://raw.githubusercontent.com/sujianleo/Family/main/apps/web/public/family-logo-v2.png" alt="Family" width="120" />
+  <img src="./apps/web/public/family-logo-v2.png" alt="Family" width="120" />
 </h3>
 
 <p align="center">
@@ -27,6 +27,8 @@ A family rarely needs another group chat. It needs a place that remembers what m
 
 - **Health records:** Keep reports and follow-up plans together, ready when you need them.
 - **Family coordination:** Assign tasks and reminders without digging through endless chat history.
+- **Notifications that close the loop:** Receive task reminders in supported browsers and clear related notices when the work is finished.
+- **Mobile-first routines:** Complete or restore tasks with deliberate swipe actions and manage several family files without losing your place.
 - **Long-term memory:** Capture something today and still find it tomorrow—or years from now.
 - **People stay in charge:** AI can organize and suggest; the family always makes the decision.
 
@@ -41,6 +43,16 @@ A family rarely needs another group chat. It needs a place that remembers what m
 4. **Confirm first:** Important actions are shown to the family before anything happens.
 
 5. **Follow through:** Reminders, tasks, and feedback remain part of the record after the work is done.
+
+## Made for everyday family use
+
+- **Write naturally:** Mention a family member anywhere in a sentence to prepare an assignment. Mentions at the beginning can still start a group conversation.
+- **See the whole time at a glance:** Task rows keep the date, weekday, and time aligned without turning the home screen into a spreadsheet.
+- **Move with confidence:** Complete and restore gestures settle predictably, even while the family timeline is synchronizing.
+- **Stay informed without duplicates:** The app coordinates foreground reminders and Web Push so the same task is not announced twice.
+- **Keep documents manageable:** Images and files stay stable while selecting, downloading, or removing several resources.
+
+Family treats AI output as a candidate, not an action. A suggestion can become a task, plan, or memory only after a person confirms it.
 
 ## Quick Start
 
