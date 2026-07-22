@@ -288,7 +288,7 @@ export function TaskSwipeItem({
             ...style,
             touchAction: "pan-y",
             transform: `translate3d(${offset}px, 0, 0)`,
-            transition: dragging ? "none" : `transform ${settleTransitionMs}ms cubic-bezier(0.2, 1.18, 0.3, 1)`
+            transition: dragging ? "none" : `transform ${settleTransitionMs}ms cubic-bezier(.22, .72, .2, 1)`
           } as CSSProperties
         }
         tabIndex={0}

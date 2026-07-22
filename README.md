@@ -1,11 +1,12 @@
 <h3 align="center">
-  <img src="https://raw.githubusercontent.com/sujianleo/Family/main/apps/web/public/family-logo-v2.png" alt="Family" width="120" />
+  <img src="./apps/web/public/family-logo-v2.png" alt="Family" width="120" />
 </h3>
 
 <p align="center">
   <img alt="Self-hosted" src="https://img.shields.io/badge/SELF--HOSTED-2F6F68?style=flat-square" />
   <img alt="AI optional" src="https://img.shields.io/badge/AI-OPTIONAL-1E514C?style=flat-square" />
   <img alt="PWA" src="https://img.shields.io/badge/PWA-6C717C?style=flat-square" />
+  <img alt="License: MIT" src="https://img.shields.io/badge/LICENSE-MIT-9584C5?style=flat-square" />
   <br />
   <img alt="Next.js" src="https://img.shields.io/badge/NEXT.JS-20302A?style=flat-square&logo=nextdotjs&logoColor=white" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TYPESCRIPT-2F6F68?style=flat-square&logo=typescript&logoColor=white" />
@@ -27,6 +28,8 @@ A family rarely needs another group chat. It needs a place that remembers what m
 
 - **Health records:** Keep reports and follow-up plans together, ready when you need them.
 - **Family coordination:** Assign tasks and reminders without digging through endless chat history.
+- **Notifications that close the loop:** Receive task reminders in supported browsers and clear related notices when the work is finished.
+- **Mobile-first routines:** Complete or restore tasks with deliberate swipe actions and manage several family files without losing your place.
 - **Long-term memory:** Capture something today and still find it tomorrow—or years from now.
 - **People stay in charge:** AI can organize and suggest; the family always makes the decision.
 
@@ -41,6 +44,16 @@ A family rarely needs another group chat. It needs a place that remembers what m
 4. **Confirm first:** Important actions are shown to the family before anything happens.
 
 5. **Follow through:** Reminders, tasks, and feedback remain part of the record after the work is done.
+
+## Made for everyday family use
+
+- **Write naturally:** Mention a family member anywhere in a sentence to prepare an assignment. Mentions at the beginning can still start a group conversation.
+- **See the whole time at a glance:** Task rows keep the date, weekday, and time aligned without turning the home screen into a spreadsheet.
+- **Move with confidence:** Complete and restore gestures settle predictably, even while the family timeline is synchronizing.
+- **Stay informed without duplicates:** The app coordinates foreground reminders and Web Push so the same task is not announced twice.
+- **Keep documents manageable:** Images and files stay stable while selecting, downloading, or removing several resources.
+
+Family treats AI output as a candidate, not an action. A suggestion can become a task, plan, or memory only after a person confirms it.
 
 ## Quick Start
 
@@ -113,6 +126,10 @@ Open **Settings → AI** to choose DeepSeek, OpenAI, Qwen, Kimi, Zhipu, Hunyuan,
 ## Documentation
 
 [User Guide](docs/user-guide.md) · [Self-hosted Supabase](docs/self-hosted-supabase.md) · [System Architecture](docs/system-architecture.md) · [Capability Matrix](docs/capability-matrix.md)
+
+## License
+
+Family is available under the [MIT License](LICENSE).
 
 ---
 

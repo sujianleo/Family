@@ -53,6 +53,10 @@ export function withSelectedMentionLabels(text: string, displayNames: string[]) 
   return missingMentions.length ? `${missingMentions.join(" ")} ${text}`.trim() : text;
 }
 
+export function mentionLabelsForPlainDisplay(value: string) {
+  return value.replace(/(^|[\s、，,])@(?=[^\s、，,]+)/g, "$1");
+}
+
 export function removeComposerMention(value: string, displayName: string): ComposerMentionEdit {
   const mention = `@${displayName.trim()}`;
   const index = value.indexOf(mention);

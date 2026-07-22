@@ -8,6 +8,7 @@ import type { FamilyNotification } from "@/lib/notifications";
 import { buildNotificationPresentation } from "@/lib/notificationPresentation";
 import { mergeDismissedNotificationIds, readDismissedNotificationIds, writeDismissedNotificationIds } from "@/lib/notificationPopup";
 import { localTaskReminderEventType } from "@/lib/localTaskReminders";
+import { familyRecordStatusChangedEventType } from "@/lib/records";
 import { usePageScrollLock } from "@/lib/pageScrollLock";
 import { AvatarImage } from "./avatar";
 
@@ -85,15 +86,22 @@ export function NotificationCenter({ members }: { members: FamilyMember[] }) {
       const item = (event as CustomEvent<FamilyNotification>).detail;
       if (!item?.id || item.type !== "task_due") return;
       setItems((current) => [item, ...current.filter((notification) => notification.id !== item.id)]);
-      void showSystemNotification(item);
+      void showLocalSystemNotificationFallback(item);
+    };
+    const handleRecordStatusChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: unknown; status?: unknown }>).detail;
+      if (typeof detail?.id !== "string" || detail.status !== "done") return;
+      setItems((current) => current.filter((item) => notificationRecordId(item.deepLink) !== detail.id));
     };
     window.addEventListener("focus", handleFocus);
     window.addEventListener(localTaskReminderEventType, handleLocalTaskReminder);
+    window.addEventListener(familyRecordStatusChangedEventType, handleRecordStatusChanged);
     navigator.serviceWorker?.addEventListener("message", handleServiceWorkerMessage);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener(localTaskReminderEventType, handleLocalTaskReminder);
+      window.removeEventListener(familyRecordStatusChangedEventType, handleRecordStatusChanged);
       navigator.serviceWorker?.removeEventListener("message", handleServiceWorkerMessage);
     };
   }, [refresh]);
@@ -127,15 +135,17 @@ export function NotificationCenter({ members }: { members: FamilyMember[] }) {
   async function clearAllNotifications() {
     setMessage("");
     setPendingAction("__clear__");
+    const previousItems = items;
+    dismissedIdsRef.current = new Set(mergeDismissedNotificationIds(dismissedIdsRef.current, previousItems.map((item) => item.id)));
+    writeDismissedNotificationIds(window.sessionStorage, dismissedIdsRef.current);
+    setItems([]);
+    const nav = navigator as Navigator & { clearAppBadge?: () => Promise<void> };
+    void nav.clearAppBadge?.();
     try {
       const response = await familyFetch("/api/notifications", { method: "DELETE" });
       if (!response.ok) throw new Error(await readResponseDetail(response, "通知清除失败，请稍后重试。"));
-      dismissedIdsRef.current = new Set(mergeDismissedNotificationIds(dismissedIdsRef.current, items.map((item) => item.id)));
-      writeDismissedNotificationIds(window.sessionStorage, dismissedIdsRef.current);
-      setItems([]);
-      const nav = navigator as Navigator & { clearAppBadge?: () => Promise<void> };
-      void nav.clearAppBadge?.();
     } catch (error) {
+      setItems(previousItems);
       setMessage(error instanceof Error ? error.message : "通知清除失败，请稍后重试。");
     } finally {
       setPendingAction(null);
@@ -216,9 +226,10 @@ export function NotificationCenter({ members }: { members: FamilyMember[] }) {
   );
 }
 
-async function showSystemNotification(item: FamilyNotification) {
+async function showLocalSystemNotificationFallback(item: FamilyNotification) {
   if (!("Notification" in window) || Notification.permission !== "granted" || !("serviceWorker" in navigator)) return;
   const registration = await navigator.serviceWorker.getRegistration("/") || await navigator.serviceWorker.ready;
+  if (await registration.pushManager?.getSubscription().catch(() => null)) return;
   await registration.showNotification(item.title, {
     body: item.body,
     icon: "/family-logo-v2-192.png",
@@ -226,6 +237,14 @@ async function showSystemNotification(item: FamilyNotification) {
     tag: item.id,
     data: { id: item.id, deepLink: item.deepLink }
   });
+}
+
+function notificationRecordId(deepLink: string) {
+  try {
+    return new URL(deepLink || "/", window.location.origin).searchParams.get("record");
+  } catch {
+    return null;
+  }
 }
 
 function replaceNotificationLocation(deepLink: string) {

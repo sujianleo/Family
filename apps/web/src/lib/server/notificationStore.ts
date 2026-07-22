@@ -146,11 +146,15 @@ async function cancelDueNotifications(context: Context, recordId: string) {
 async function cancelTaskNotifications(context: Context, recordId: string) {
   const supabase = createServiceSupabaseClient() as any;
   if (supabase && context.familyId) {
-    await supabase.from("notifications").update({ status: "canceled", updated_at: new Date().toISOString() }).eq("family_id", context.familyId).like("dedupe_key", `task:${recordId}:%`).in("status", ["queued", "dispatching"]);
+    await supabase.from("notifications").update({ status: "canceled", updated_at: new Date().toISOString() }).eq("family_id", context.familyId).eq("source_record_id", recordId).neq("status", "canceled");
     return;
   }
   const rows = await readJsonl<NotificationRow>(`${dataDir}/notifications.jsonl`);
-  await writeJsonl(`${dataDir}/notifications.jsonl`, rows.map((row) => row.familyId === context.familyId && row.dedupeKey.startsWith(`task:${recordId}:`) && ["queued", "dispatching"].includes(row.status) ? { ...row, status: "canceled" } : row));
+  await writeJsonl(`${dataDir}/notifications.jsonl`, rows.map((row) => row.familyId === context.familyId && row.deepLink === `/?record=${encodeURIComponent(recordId)}` && row.status !== "canceled" ? { ...row, status: "canceled" } : row));
+}
+
+export async function cancelRecordNotifications(context: Context, recordId: string) {
+  await cancelTaskNotifications(context, recordId);
 }
 
 async function persistNotificationEvents(context: Context, recordId: string, events: Array<{ recipientMemberId: string; type: NotificationType; title: string; body: string; scheduledFor: string; dedupeKey: string }>, deepLink = recordId ? `/?record=${encodeURIComponent(recordId)}` : "/") {

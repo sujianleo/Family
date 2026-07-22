@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { familyMembers } from "@/lib/mockData";
 import { FamilyRequestContextError, requireFamilyRequestContext } from "@/lib/server/familyRequestContext";
-import { createRecordNotifications } from "@/lib/server/notificationStore";
+import { cancelRecordNotifications, createRecordNotifications } from "@/lib/server/notificationStore";
 import { readSupabaseServerUrl } from "@/lib/server/supabaseConfig";
 import type { AssignmentStatus, Database, FamilyRecord, FamilyRecordAudience, FamilyRecordKind, FamilyRecordStatus, Json } from "@/lib/types";
 
@@ -257,6 +257,7 @@ export async function PATCH(request: Request) {
       });
       if (!found) return NextResponse.json({ detail: "记录不存在。" }, { status: 404 });
       await writeFallbackRecords(updated);
+      if (status === "done") await cancelRecordNotifications(context, id);
       return NextResponse.json({ id, status });
     }
 
@@ -287,6 +288,7 @@ export async function PATCH(request: Request) {
       .eq("id", id)
       .eq("family_id", context.familyId);
     if (error) return NextResponse.json({ detail: error.message }, { status: 500 });
+    if (status === "done") await cancelRecordNotifications(context, id);
     return NextResponse.json({ id, status });
   } catch (error) {
     if (error instanceof FamilyRequestContextError) {
