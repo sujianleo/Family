@@ -2,6 +2,17 @@
 
 import { useEffect } from "react";
 
+const refreshAppShellMessage = { type: "family-refresh-app-shell" } as const;
+
+export function refreshPwaAppShell() {
+  if (!("serviceWorker" in navigator) || !window.isSecureContext) return;
+  void navigator.serviceWorker.ready
+    .then((registration) => {
+      (navigator.serviceWorker.controller || registration.active)?.postMessage(refreshAppShellMessage);
+    })
+    .catch(() => undefined);
+}
+
 export function PwaServiceWorker() {
   useEffect(() => {
     if (!("serviceWorker" in navigator) || !window.isSecureContext) {
@@ -22,7 +33,10 @@ export function PwaServiceWorker() {
 
     const registerServiceWorker = () => {
       void navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" })
-        .then((registration) => registration.update())
+        .then(async (registration) => {
+          await registration.update();
+          refreshPwaAppShell();
+        })
         .catch(() => undefined);
     };
 

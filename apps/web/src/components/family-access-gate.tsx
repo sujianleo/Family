@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { isFamilyAuthRequired, isLocalFamilyAuth } from "@/lib/familyApi";
 import { normalizePhoneNumber } from "@/lib/phoneAuth";
 import { supabase } from "@/lib/supabase";
+import { refreshPwaAppShell } from "./pwa-service-worker";
 import styles from "./family-access-gate.module.css";
 
 const rememberedAccountKey = "family-app-remembered-account";
@@ -32,6 +33,7 @@ export function FamilyAccessGate({ children, initialSignedIn }: { children: Reac
         const hasSession = Boolean(sessionResult.data.session);
         setSignedIn(hasSession);
         if (hasSession) {
+          refreshPwaAppShell();
           setSetupRequired(false);
           return;
         }
@@ -82,6 +84,7 @@ export function FamilyAccessGate({ children, initialSignedIn }: { children: Reac
     window.localStorage.setItem(rememberedAccountKey, phone.trim());
     setPassword("");
     setSignedIn(true);
+    refreshPwaAppShell();
   }
 
   async function createFamily(event: React.FormEvent<HTMLFormElement>) {
@@ -122,6 +125,7 @@ export function FamilyAccessGate({ children, initialSignedIn }: { children: Reac
     }
     window.localStorage.setItem(rememberedAccountKey, phone.trim());
     setSignedIn(true);
+    refreshPwaAppShell();
   }
 
   if (setupRequired === null) {

@@ -1,4 +1,6 @@
-const CACHE_NAME = "family-app-pwa-v13";
+const CACHE_NAME = "family-app-pwa-v14";
+const APP_SHELL_CACHE_NAME = "family-app-shell-v1";
+const APP_SHELL_CACHE_KEY = "/";
 const RESOURCE_CACHE_NAME = "family-app-resources-v1";
 const RESOURCE_CACHE_PREFIX = "family-app-resources-";
 const RESOURCE_CACHE_MAX_ENTRIES = 120;
@@ -22,18 +24,22 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME && key !== RESOURCE_CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => ![CACHE_NAME, APP_SHELL_CACHE_NAME, RESOURCE_CACHE_NAME].includes(key)).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener("message", (event) => {
+  if (event.data?.type === "family-refresh-app-shell") {
+    event.waitUntil(refreshAppShell());
+    return;
+  }
   if (event.data?.type === "family-cache-resources" && Array.isArray(event.data.urls)) {
     event.waitUntil(warmResourceCache(event.data.urls));
     return;
   }
   if (event.data?.type === "family-clear-resource-cache") {
-    event.waitUntil(clearResourceCaches());
+    event.waitUntil(clearPrivateCaches());
   }
 });
 
@@ -64,6 +70,11 @@ self.addEventListener("fetch", (event) => {
 
   if (url.pathname.startsWith("/resource-icons/") || url.pathname.startsWith("/stickers/") || STATIC_PATHS.includes(url.pathname)) {
     event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  if (request.mode === "navigate" && url.pathname === "/") {
+    event.respondWith(appShellCacheFirst(request, event));
     return;
   }
 
@@ -127,9 +138,32 @@ async function cacheFirst(request) {
 
   const response = await fetch(request);
   if (response.ok) {
-    cache.put(request, response.clone());
+    await cache.put(request, response.clone());
   }
   return response;
+}
+
+async function appShellCacheFirst(request, event) {
+  const cache = await caches.open(APP_SHELL_CACHE_NAME);
+  const cached = await cache.match(APP_SHELL_CACHE_KEY);
+  if (cached) {
+    event.waitUntil(refreshAppShell(request).catch(() => undefined));
+    return cached;
+  }
+  return refreshAppShell(request);
+}
+
+async function refreshAppShell(request = new Request(new URL(APP_SHELL_CACHE_KEY, self.location.origin).href, { credentials: "same-origin" })) {
+  const response = await fetch(new Request(request, { cache: "no-store", credentials: "same-origin" }));
+  if (canStoreAppShell(response)) {
+    const cache = await caches.open(APP_SHELL_CACHE_NAME);
+    await cache.put(APP_SHELL_CACHE_KEY, response.clone());
+  }
+  return response;
+}
+
+function canStoreAppShell(response) {
+  return response.ok && (response.headers.get("content-type") || "").toLowerCase().includes("text/html");
 }
 
 async function resourceCacheFirst(request) {
@@ -195,9 +229,9 @@ async function trimResourceCache(cache) {
   }
 }
 
-async function clearResourceCaches() {
+async function clearPrivateCaches() {
   const keys = await caches.keys();
-  await Promise.all(keys.filter((key) => key.startsWith(RESOURCE_CACHE_PREFIX)).map((key) => caches.delete(key)));
+  await Promise.all(keys.filter((key) => key === APP_SHELL_CACHE_NAME || key.startsWith(RESOURCE_CACHE_PREFIX)).map((key) => caches.delete(key)));
 }
 
 async function networkFirst(request) {

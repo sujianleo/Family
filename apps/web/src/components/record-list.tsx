@@ -6180,7 +6180,9 @@ async function clearLocalResourceCache() {
   navigator.serviceWorker?.controller?.postMessage({ type: "family-clear-resource-cache" });
   if (!("caches" in window)) return;
   const keys = await window.caches.keys();
-  await Promise.all(keys.filter((key) => key.startsWith("family-app-resources-")).map((key) => window.caches.delete(key)));
+  await Promise.all(keys
+    .filter((key) => key === "family-app-shell-v1" || key.startsWith("family-app-resources-"))
+    .map((key) => window.caches.delete(key)));
 }
 
 function preferPersistentUrl(...urls: (string | undefined)[]) {
