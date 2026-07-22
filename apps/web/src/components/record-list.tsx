@@ -20,7 +20,7 @@ import {
 import { runAutomationAction as executeAutomationAction, runAutomationPipeline as executeAutomationPipeline, type AutomationActionResponse, type AutomationDisplayTarget, type AutomationDisplayType } from "@/lib/automations";
 import type { AutomationActionId, AutomationUnitDefinition } from "@/lib/automationRegistry";
 import { buildMentionOnlyGroupMemberIds, buildMentionOnlyGroupTitle, compileComposerIntent, haveSameGroupMemberIds } from "@/lib/composerIntent";
-import { clearComposerMentionTrigger, hasComposerMentionTrigger, insertComposerMention, isComposerMentionTriggerAtStart, removeComposerMention, withSelectedMentionLabels } from "@/lib/composerMention";
+import { clearComposerMentionTrigger, hasComposerMentionTrigger, insertComposerMention, isComposerMentionTriggerAtStart, mentionLabelsForPlainDisplay, removeComposerMention, withSelectedMentionLabels } from "@/lib/composerMention";
 import { formatChatTimestamp, shouldShowChatTimestamp } from "@/lib/chatMessageTime";
 import { isPollWakeKeyword, parseDecisionCandidate, type FamilyDecision } from "@/lib/familyDecisions";
 import { isEligibleJudgementMember, type GroupJudgement } from "@/lib/groupJudgement";
@@ -629,6 +629,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
   const deepLinkHandledRef = useRef(false);
   const deleteToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRecordDeletionIdsRef = useRef(new Set<string>());
+  const pendingRecordStatusRef = useRef(new Map<string, FamilyRecord["status"]>());
   const softDeleteRequestsRef = useRef(new Map<string, Promise<boolean>>());
   const selectedTask = useMemo(
     () => groupRecords.find((record) => record.id === selectedTaskId)
@@ -791,7 +792,14 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
           (record) =>
             (demoDataEnabled || !demoRecordIdSet.has(record.id)) &&
             !pendingRecordDeletionIdsRef.current.has(record.id)
-        );
+        ).map((record) => {
+          const pendingStatus = pendingRecordStatusRef.current.get(record.id);
+          return pendingStatus ? {
+            ...record,
+            assignmentStatus: pendingStatus === "done" ? "done" as const : "assigned" as const,
+            status: pendingStatus
+          } : record;
+        });
         if (serverRecords.length) {
           setLocalRecords((currentRecords) => mergeServerRecords(serverRecords, currentRecords));
         }
@@ -1481,6 +1489,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
 
   function handleCompleteTask(recordId: string) {
     const completedRecord = localRecords.find((record) => record.id === recordId);
+    if (!completedRecord || pendingRecordStatusRef.current.has(recordId)) return;
     const restoringTask = completedRecord?.status === "done";
     const completedTask = completedRecord
       ? {
@@ -1497,6 +1506,8 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
           updatedAt: "刚刚"
         }
       : null;
+    if (!completedTask) return;
+    pendingRecordStatusRef.current.set(recordId, completedTask.status);
     setLocalRecords((currentRecords) =>
       currentRecords.map((record) => {
         if (record.id !== recordId) {
@@ -1527,7 +1538,19 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
       setSwipeToast((current) => (current?.id === completedToastId ? null : current));
     }, 2400);
     if (completedRecord) {
-      if (completedTask) void updateFamilyRecord(completedTask).catch(() => false);
+      void (async () => {
+        let saved = false;
+        try {
+          saved = await updateFamilyRecord(completedTask);
+        } catch {
+          saved = false;
+        } finally {
+          pendingRecordStatusRef.current.delete(recordId);
+        }
+        if (!saved) {
+          setLocalRecords((currentRecords) => currentRecords.map((record) => record.id === recordId ? completedRecord : record));
+        }
+      })();
       void enqueueMetaEvent({
         type: restoringTask ? "task_reopened" : "task_completed",
         actorMemberId: currentMemberId,
@@ -2161,6 +2184,7 @@ function ResourceColumnCard({
   const cardClasses = [
     "resource-column-card",
     `resource-column-card-${kind}`,
+    selectionMode ? "selection-mode" : "",
     selected ? "selected" : "",
     record.uploadState === "uploading" ? "uploading" : "",
     record.uploadState === "error" ? "upload-error" : ""
@@ -2198,7 +2222,7 @@ function ResourceColumnCard({
       >
         {kind === "image" ? (
           <span className="resource-column-thumbnail-frame">
-            <img alt="" className="resource-column-thumbnail user-upload-image" loading="lazy" src={previewUrl} />
+            <img alt="" className="resource-column-thumbnail user-upload-image" draggable={false} loading="lazy" src={previewUrl} />
             {record.uploadState === "uploading" ? (
               <span
                 aria-label={`上传进度 ${Math.round(uploadProgress)}%`}
@@ -2215,7 +2239,7 @@ function ResourceColumnCard({
         ) : null}
         {kind === "document" ? (
           <span className={`resource-column-document-frame${previewUrl && !previewFailed ? " has-preview" : ""}`} aria-hidden="true">
-            {previewUrl && !previewFailed ? <img alt="" className="resource-column-document-thumbnail" loading="lazy" onError={() => setPreviewFailed(true)} src={previewUrl} /> : null}
+            {previewUrl && !previewFailed ? <img alt="" className="resource-column-document-thumbnail" draggable={false} loading="lazy" onError={() => setPreviewFailed(true)} src={previewUrl} /> : null}
             {!previewUrl || previewFailed ? (
               <span className="resource-column-document-fallback">
                 <small>{formatDocumentTypeBadge(record)}</small>
@@ -2681,7 +2705,7 @@ function InboxRecordRow({
       )}
       <div className="record-copy inbox-copy task-copy">
         <h3>{record.displayTime ? stripTaskTimeFromTitle(record.title, record.displayTime) : record.title}</h3>
-        {timeMeta ? <TimeHighlightedText className="task-time-meta" text={timeMeta} /> : null}
+      {timeMeta ? <TaskTimeMeta text={timeMeta} /> : null}
       </div>
       <span className={`status task-status ${listStatus}`}>
         {listStatusLabel}
@@ -2707,6 +2731,23 @@ function useTaskOverdue(record: Pick<FamilyRecord, "dueAt" | "status">) {
   }, [record.dueAt, record.status]);
 
   return overdue;
+}
+
+function TaskTimeMeta({ text }: { text: string }) {
+  const parts = text.trim().split(/\s+/);
+  const time = parts.at(-1) || "";
+  const weekday = parts.length >= 3 ? parts.at(-2) || "" : "";
+  const date = parts.slice(0, weekday ? -2 : -1).join(" ");
+  if (!date || !/^周[一二三四五六日]$/.test(weekday) || !/^\d{2}:\d{2}$/.test(time)) {
+    return <TimeHighlightedText className="task-time-meta" text={text} />;
+  }
+  return (
+    <span className="task-time-meta task-time-meta-columns">
+      <mark className="time-highlight date" data-time-part="date">{date}</mark>
+      <mark className="time-highlight weekday" data-time-part="weekday">{weekday}</mark>
+      <mark className="time-highlight time" data-time-part="time">{time}</mark>
+    </span>
+  );
 }
 
 function AssignedTaskAvatars({ members }: { members: FamilyMember[] }) {
@@ -8161,7 +8202,7 @@ function parsePendingTaskSummary(text: string) {
   const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
   if (lines[0] !== "待确认任务" || !lines[1]) return null;
   const time = lines.find((line) => line.startsWith("时间："))?.slice("时间：".length).trim() || "";
-  const assignee = lines.find((line) => line.startsWith("负责人："))?.slice("负责人：".length).trim() || "待确认";
+  const assignee = mentionLabelsForPlainDisplay(lines.find((line) => line.startsWith("负责人："))?.slice("负责人：".length).trim() || "待确认");
   return { assignee, time, title: lines[1] };
 }
 

@@ -771,9 +771,10 @@ body {
   border-radius: 0;
   transform: translate3d(var(--home-drawer-shift, 0), var(--home-drawer-sink, 0), 0) scale(var(--home-drawer-scale, 1));
   transform-origin: center;
+  backface-visibility: hidden;
   transition:
-    transform 520ms cubic-bezier(.2, 1.16, .32, 1),
-    box-shadow 520ms ease;
+    transform 360ms cubic-bezier(.22, .72, .2, 1),
+    box-shadow 320ms ease;
   will-change: transform;
 }
 
@@ -7051,7 +7052,7 @@ html[data-visual-theme="dopamine"][data-color-scheme="light"] body {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   animation: none;
-  transition: visibility 0s linear 520ms;
+  transition: visibility 0s linear 380ms;
 }
 
 .notification-backdrop.active {
@@ -7083,7 +7084,8 @@ html[data-visual-theme="dopamine"][data-color-scheme="light"] body {
   opacity: var(--drawer-opacity, 0.72);
   transform: translate3d(0, var(--drawer-rise, 18px), 0) scale(var(--drawer-scale, .985));
   animation: none;
-  transition: opacity 420ms ease, transform 520ms cubic-bezier(.2, 1.16, .32, 1);
+  backface-visibility: hidden;
+  transition: opacity 260ms ease-out, transform 360ms cubic-bezier(.22, .72, .2, 1);
   will-change: opacity, transform;
   touch-action: pan-y;
 }
@@ -7653,10 +7655,10 @@ html[data-visual-theme="dopamine"][data-color-scheme="light"] body {
   z-index: 10;
   pointer-events: none;
   visibility: hidden;
-  background: color-mix(in srgb, var(--surface-strong) 36%, transparent);
-  backdrop-filter: blur(14px) saturate(1.08);
-  -webkit-backdrop-filter: blur(14px) saturate(1.08);
-  transition: visibility 0s linear 520ms;
+  background: color-mix(in srgb, var(--surface-strong) 96%, transparent);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: visibility 0s linear 380ms;
 }
 
 .settings-layer.active {
@@ -7689,7 +7691,8 @@ html[data-visual-theme="dopamine"][data-color-scheme="light"] body {
   -webkit-backdrop-filter: blur(36px) saturate(1.18);
   opacity: var(--drawer-opacity, 0.72);
   transform: translate3d(0, var(--drawer-rise, 18px), 0) scale(var(--drawer-scale, .985));
-  transition: opacity 420ms ease, transform 520ms cubic-bezier(.2, 1.16, .32, 1);
+  backface-visibility: hidden;
+  transition: opacity 260ms ease-out, transform 360ms cubic-bezier(.22, .72, .2, 1);
   will-change: opacity, transform;
   touch-action: pan-y;
 }
@@ -9175,6 +9178,112 @@ html[data-color-scheme="dark"] .assistant-result-item.user {
   padding: 5px;
 }
 
+.resource-column-card.selection-mode,
+.resource-column-card.selection-mode > button,
+.resource-column-card.selection-mode img {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.resource-column-card.selection-mode > button,
+.resource-column-card.selection-mode > button:hover,
+.resource-column-card.selection-mode > button:active {
+  transform: none;
+}
+
+.resource-column-card.selection-mode img {
+  pointer-events: none;
+}
+
+.record-group[data-feature="tasks"] .task-copy h3,
+.record-group[data-feature="groups"] .group-chat-title {
+  font-weight: 600;
+}
+
+.task-time-meta-columns {
+  display: grid;
+  grid-template-columns: 4.45ch 2.4em 4.8ch;
+  align-items: baseline;
+  column-gap: .12em;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-time-meta-columns .time-highlight {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.task-time-meta-columns .date {
+  color: color-mix(in srgb, var(--time-highlight) 82%, var(--muted));
+}
+
+.task-time-meta-columns .weekday {
+  color: color-mix(in srgb, var(--time-highlight) 91%, var(--muted));
+}
+
+.task-time-meta-columns .time {
+  color: var(--time-highlight);
+}
+
+/* Keep the current home structure, but give task rows the calm, tactile
+   hierarchy of a household agenda: one continuous list, restrained status
+   color, and dividers that begin with the content instead of boxing each row. */
+.record-group[data-feature="tasks"] .record-group-body {
+  gap: 0;
+}
+
+.record-group[data-feature="tasks"] .record-action-wrap + .record-action-wrap::before {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  right: 4px;
+  left: 48px;
+  height: 1px;
+  background: color-mix(in srgb, var(--line) 76%, transparent);
+  content: "";
+  pointer-events: none;
+}
+
+.record-group[data-feature="tasks"] .inbox-row {
+  min-height: 56px;
+  gap: 10px;
+  padding-block: 7px;
+}
+
+.record-group[data-feature="tasks"] :is(.inbox-row .sender-avatar, .assigned-task-avatar) {
+  width: 36px;
+  height: 36px;
+  background: var(--surface-tint);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--time-highlight) 10%, var(--line)),
+    0 3px 10px color-mix(in srgb, var(--time-highlight) 8%, transparent);
+}
+
+.record-group[data-feature="tasks"] .task-copy {
+  gap: 3px;
+}
+
+.record-group[data-feature="tasks"] .task-copy h3 {
+  color: color-mix(in srgb, var(--text-strong) 94%, var(--time-highlight));
+  letter-spacing: -0.008em;
+}
+
+.record-group[data-feature="tasks"] :is(.task-status.todo, .task-status.doing, .task-progress-pill.pending) {
+  color: color-mix(in srgb, var(--time-highlight) 86%, var(--muted));
+}
+
+.record-group[data-feature="tasks"] :is(.task-status.overdue, .task-progress-pill.overdue) {
+  color: color-mix(in srgb, var(--danger, #b64848) 88%, var(--muted));
+}
+
+.record-group[data-feature="tasks"] .task-status.done {
+  color: color-mix(in srgb, var(--green) 86%, var(--muted));
+}
+
 /* Selection is a temporary tool, not another page section. Keep it as one
    small frosted capsule above the home dock. Destructive removal is two-step. */
 .task-selection-bar {
@@ -9186,54 +9295,64 @@ html[data-color-scheme="dark"] .assistant-result-item.user {
   display: flex;
   width: max-content;
   max-width: calc(100vw - 24px);
-  min-height: 46px;
+  min-height: 54px;
   align-items: center;
-  gap: 8px;
-  border: 1px solid color-mix(in srgb, var(--feature-resource) 18%, var(--line));
+  gap: 14px;
+  border: 1px solid color-mix(in srgb, var(--feature-resource) 12%, var(--line));
   border-radius: 999px;
-  padding: 5px 6px 5px 13px;
+  padding: 6px 7px 6px 16px;
   transform: translateX(-50%);
-  background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
-  box-shadow: 0 18px 42px color-mix(in srgb, var(--text-strong) 14%, transparent);
-  -webkit-backdrop-filter: blur(22px) saturate(1.1);
-  backdrop-filter: blur(22px) saturate(1.1);
+  background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
+  box-shadow:
+    0 18px 44px color-mix(in srgb, var(--text-strong) 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 72%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.08);
+  backdrop-filter: blur(24px) saturate(1.08);
 }
 
 .task-selection-bar > strong {
   flex: 0 0 auto;
-  color: var(--text-strong);
-  font-size: 11px;
-  font-weight: 720;
+  min-width: 48px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 680;
+  letter-spacing: .01em;
   white-space: nowrap;
 }
 
 .task-selection-actions {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
 }
 
 .task-selection-bar button {
-  min-width: 52px;
-  min-height: 34px;
-  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  min-width: 60px;
+  min-height: 40px;
+  border: 1px solid transparent;
   border-radius: 999px;
-  padding: 0 12px;
-  background: color-mix(in srgb, var(--surface-tint) 78%, transparent);
+  padding: 0 15px;
+  background: color-mix(in srgb, var(--surface-tint) 66%, transparent);
   color: var(--text);
-  font-size: 10px;
-  font-weight: 720;
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 140ms ease;
+}
+
+.task-selection-bar button:active {
+  transform: scale(.97);
 }
 
 .task-selection-bar button.primary {
-  border-color: color-mix(in srgb, var(--feature-resource) 18%, transparent);
-  background: color-mix(in srgb, var(--feature-resource-soft) 82%, transparent);
+  border-color: color-mix(in srgb, var(--feature-resource) 14%, transparent);
+  background: color-mix(in srgb, var(--feature-resource) 12%, var(--surface-strong));
   color: var(--feature-resource);
 }
 
 .task-selection-bar button.danger {
-  border-color: color-mix(in srgb, var(--danger, #b64848) 18%, transparent);
-  background: color-mix(in srgb, var(--danger, #b64848) 10%, transparent);
+  border-color: color-mix(in srgb, var(--danger, #b64848) 12%, transparent);
+  background: color-mix(in srgb, var(--danger, #b64848) 8%, var(--surface-strong));
   color: var(--danger, #b64848);
 }
 

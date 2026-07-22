@@ -1,6 +1,8 @@
 import type { AssignmentSuggestion, FamilyRecord } from "./types";
 import { familyFetch } from "./familyApi";
 
+export const familyRecordStatusChangedEventType = "family-record-status-changed";
+
 const familyId = process.env.NEXT_PUBLIC_SUPABASE_FAMILY_ID || "";
 const memberId = process.env.NEXT_PUBLIC_SUPABASE_MEMBER_ID || "";
 const coreSpaceId = process.env.NEXT_PUBLIC_SUPABASE_CORE_SPACE_ID || "core";
@@ -72,6 +74,11 @@ export async function updateFamilyRecord(record: Pick<FamilyRecord, "id" | "stat
       task_responses: record.taskResponses || []
     })
   });
+  if (res.ok && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(familyRecordStatusChangedEventType, {
+      detail: { id: record.id, status: record.status }
+    }));
+  }
   return res.ok;
 }
 
