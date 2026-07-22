@@ -6,6 +6,7 @@
   <img alt="Self-hosted" src="https://img.shields.io/badge/SELF--HOSTED-2F6F68?style=flat-square" />
   <img alt="AI optional" src="https://img.shields.io/badge/AI-OPTIONAL-1E514C?style=flat-square" />
   <img alt="PWA" src="https://img.shields.io/badge/PWA-6C717C?style=flat-square" />
+  <img alt="License: MIT" src="https://img.shields.io/badge/LICENSE-MIT-9584C5?style=flat-square" />
   <br />
   <img alt="Next.js" src="https://img.shields.io/badge/NEXT.JS-20302A?style=flat-square&logo=nextdotjs&logoColor=white" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TYPESCRIPT-2F6F68?style=flat-square&logo=typescript&logoColor=white" />
@@ -125,6 +126,10 @@ Open **Settings → AI** to choose DeepSeek, OpenAI, Qwen, Kimi, Zhipu, Hunyuan,
 ## Documentation
 
 [User Guide](docs/user-guide.md) · [Self-hosted Supabase](docs/self-hosted-supabase.md) · [System Architecture](docs/system-architecture.md) · [Capability Matrix](docs/capability-matrix.md)
+
+## License
+
+Family is available under the [MIT License](LICENSE).
 
 ---
 
