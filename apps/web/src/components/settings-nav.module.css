@@ -1,0 +1,94 @@
+.navButton { --section-color: #2f8f7b; }
+
+.navButton.navButton .icon {
+  background: transparent;
+  color: var(--section-color);
+  box-shadow: none;
+  transition: color 180ms ease, transform 180ms ease;
+}
+
+.icon svg {
+  width: 27px;
+  height: 27px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon .aiSparkles {
+  width: 26px;
+  height: 26px;
+  stroke-width: 1.45;
+}
+
+.aiSparkles circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.appearanceFill {
+  fill: currentColor;
+  stroke: none;
+  opacity: .16;
+}
+
+.signalDot,
+.menuDot {
+  fill: currentColor;
+  stroke: none;
+}
+
+.navButton.navButton.active {
+  background: color-mix(in srgb, var(--section-color) 10%, var(--surface-strong));
+  color: var(--section-color);
+  box-shadow: none;
+}
+
+.navButton.navButton:hover .icon,
+.navButton.navButton.active .icon {
+  background: transparent;
+  color: var(--section-color);
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+:global(html[data-visual-theme="mono"][data-color-scheme="light"]) .navButton {
+  --section-color: #171716;
+}
+
+:global(html[data-visual-theme="mono"][data-color-scheme="dark"]) .navButton {
+  --section-color: #f4f4f2;
+}
+
+:global(html[data-visual-theme="dopamine"]) .navButton[data-settings-section="appearance"] {
+  --section-color: #8b5cf6;
+}
+
+:global(html[data-visual-theme="dopamine"]) .navButton[data-settings-section="network"] {
+  --section-color: #2f80ed;
+}
+
+:global(html[data-visual-theme="dopamine"]) .navButton[data-settings-section="ai"] {
+  --section-color: #e83e8c;
+}
+
+:global(html[data-visual-theme="dopamine"]) .navButton[data-settings-section="members"] {
+  --section-color: #2f9b6f;
+}
+
+:global(html[data-visual-theme="dopamine"]) .navButton[data-settings-section="general"] {
+  --section-color: #f28a1a;
+}
+
+:global(html[data-visual-theme="mono"]) .navButton.navButton .icon {
+  box-shadow: none;
+}
+
+:global(html[data-visual-theme="mono"]) .navButton.navButton.active {
+  background: var(--surface-tint);
+  color: var(--text-strong);
+  box-shadow: none;
+}

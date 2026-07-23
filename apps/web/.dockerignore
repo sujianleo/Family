@@ -1,0 +1,11 @@
+.git
+.next
+node_modules
+.env
+.env.*
+!.env.example
+data
+output
+test-results
+*.log
+.DS_Store

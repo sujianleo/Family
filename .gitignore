@@ -1,0 +1,111 @@
+# macOS
+.DS_Store
+
+# Dependencies
+node_modules/
+apps/web/node_modules/
+webui/node_modules/
+
+# Build outputs
+.next/
+apps/web/.next/
+dist/
+build/
+webui/dist/
+webui/dist-ci/
+
+# TypeScript
+*.tsbuildinfo
+
+# Runtime and generated data
+.runtime/
+.deploy/
+output/
+outputs/
+tmp/
+data/*.sqlite3
+data/*.sqlite3-*
+**/data/*.sqlite
+**/data/*.sqlite-*
+data/*.jsonl
+data/*.json
+apps/web/data/*.jsonl
+apps/web/data/*.json
+apps/web/data/archive/
+apps/web/data/guest-uploads/
+apps/web/data/tus-uploads/
+repository/
+file_list.txt
+
+# Public-source boundary: all test implementation lives in family-app-test.
+apps/web/fixtures/
+apps/web/maestro/
+apps/web/scripts/*-smoke.*
+apps/web/scripts/*-audit.*
+apps/web/scripts/run-all-project-tests.mjs
+apps/web/scripts/seed-*-test-*.mjs
+apps/web/scripts/cleanup-synthetic-*.mjs
+apps/web/scripts/deploy-fixed-tunnel.mjs
+apps/web/scripts/deploy-public-tunnel.mjs
+apps/web/scripts/fixtures/
+
+# Local environment files. Keep examples tracked.
+.env
+.env.*
+*.env
+*.local
+*.development
+*.production
+!.env.example
+!**/.env.example
+secrets.json
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+.pyre/
+.nox/
+.tox/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+.cache
+pytest_cache/
+
+# Expo / Playwright caches
+webui/.expo/
+webui/.expo-shared/
+webui/build/
+.playwright-cli/
+.playwright-mcp/
+output/playwright/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+test-results/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Editor state
+.vscode/
+.history/
+
+# Packaging / binary artifacts
+*.manifest
+*.spec
+*.so
