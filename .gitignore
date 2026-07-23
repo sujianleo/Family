@@ -25,6 +25,8 @@ outputs/
 tmp/
 data/*.sqlite3
 data/*.sqlite3-*
+**/data/*.sqlite
+**/data/*.sqlite-*
 data/*.jsonl
 data/*.json
 apps/web/data/*.jsonl

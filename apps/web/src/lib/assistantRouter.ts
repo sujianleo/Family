@@ -1598,6 +1598,9 @@ export function isProfileLearningRequest(text: string) {
 function extractDeepSummaryActionId(text: string): AutomationActionId | null {
   const normalized = normalizeInput(text);
   if (/^深度总结(?:\s|，|,|。|$)/.test(normalized)) {
+    if (/家庭|全家/.test(normalized) && /年|今年|年度/.test(normalized)) {
+      return "summary.family.yearly";
+    }
     if (/家庭|全家/.test(normalized) && /月|本月/.test(normalized)) {
       return "summary.family.monthly";
     }
@@ -1614,6 +1617,9 @@ function extractDeepSummaryActionId(text: string): AutomationActionId | null {
       return "summary.personal.weekly";
     }
     return "summary.personal.daily";
+  }
+  if (/家庭|全家/.test(normalized) && /年总结|年度总结|今年总结|总结今年/.test(normalized)) {
+    return "summary.family.yearly";
   }
   if (/家庭|全家/.test(normalized) && /月总结|本月总结|总结本月/.test(normalized)) {
     return "summary.family.monthly";

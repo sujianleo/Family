@@ -136,7 +136,8 @@ function normalizeModelResult(value: unknown, source: InsightSourceBundle): Insi
 
 function normalizeInsight(insight: InsightCandidate, allowedSourceIds: Set<string>): InsightCandidate | null {
   const sourceIds = [...new Set(insight.sourceIds.filter((sourceId) => allowedSourceIds.has(sourceId)))];
-  if (!sourceIds.length || containsUnsafeInference(`${insight.title} ${insight.summary}`)) return null;
+  const insightText = `${insight.title} ${insight.summary} ${insight.suggestedAction?.text || ""}`;
+  if (!sourceIds.length || (insight.type === "task_pattern" && sourceIds.length < 2) || containsUnsafeInference(insightText)) return null;
   const requiresConfirmation = insight.type === "memory_candidate" || insight.type === "reminder_candidate" || Boolean(insight.suggestedAction)
     ? true
     : insight.requiresConfirmation;
@@ -153,7 +154,7 @@ function normalizeInsight(insight: InsightCandidate, allowedSourceIds: Set<strin
 }
 
 function containsUnsafeInference(value: string) {
-  return /(?:可能|疑似|应该是|一定是).{0,10}(?:患病|生病|抑郁|焦虑|身体不好|关系不好|感情不好|有矛盾)|(?:谁对谁错|不孝|自私|懒惰|有病)/i.test(value);
+  return /(?:可能|疑似|应该是|一定是|似乎).{0,12}(?:希望|想要|患病|生病|抑郁|焦虑|身体不好|关系不好|感情不好|有矛盾)|(?:内心|谁对谁错|不孝|自私|懒惰|有病)/i.test(value);
 }
 
 async function invokeInsightModel(

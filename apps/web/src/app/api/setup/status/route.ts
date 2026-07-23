@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
+import { isLiteBackend } from "@/lib/server/familyBackend";
+import { readLiteInstallation } from "@/lib/server/liteRepository";
 import { createServiceSupabaseClient } from "@/lib/server/supabaseServer";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET() {
+  if (isLiteBackend()) {
+    return NextResponse.json(
+      { backend: "sqlite", setupRequired: !readLiteInstallation() },
+      { headers: { "cache-control": "no-store" } }
+    );
+  }
   const service = createServiceSupabaseClient();
   if (!service) {
     return NextResponse.json({ detail: "本地 Supabase 尚未连接。" }, { status: 503 });
@@ -20,4 +28,3 @@ export async function GET() {
     { headers: { "cache-control": "no-store" } }
   );
 }
-

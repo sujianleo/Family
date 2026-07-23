@@ -238,10 +238,10 @@ function readFormString(formData: FormData, key: string) {
 }
 
 function sanitizeRelativePath(value: string) {
-  const normalized = path.normalize(decodeURIComponent(value)).replace(/^(\.\.[/\\])+/, "");
+  const normalized = path.normalize(value).replace(/^(\.\.[/\\])+/, "");
   return normalized
     .split(path.sep)
-    .map(sanitizeSegment)
+    .map(sanitizeFileName)
     .filter(Boolean)
     .join(path.sep);
 }

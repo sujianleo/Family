@@ -31,7 +31,8 @@ const summaryActionIds = new Set<AutomationActionId>([
   "summary.personal.weekly",
   "summary.family.daily",
   "summary.family.weekly",
-  "summary.family.monthly"
+  "summary.family.monthly",
+  "summary.family.yearly"
 ]);
 
 export type AssistantRouteReflectionReason =
@@ -72,6 +73,12 @@ export async function routeAssistantWithLangChain(
     return localRoute;
   }
   if (localRoute.kind === "action" && localRoute.id === "group.organize.contextual") {
+    return localRoute;
+  }
+  if (
+    (localRoute.kind === "action" && ["app.chat", "app.answer", "app.runtime.inspect"].includes(localRoute.id)) ||
+    (localRoute.kind === "fallback" && isDirectConversationCandidate(normalized))
+  ) {
     return localRoute;
   }
   const localContract = describeAssistantRouteContract(normalized, members, context);
@@ -343,6 +350,17 @@ function requiresContextResolution(text: string) {
 function requiresSemanticModelResolution(text: string) {
   const normalized = text.replace(/\s+/g, "").replace(/[。.!！?？]+$/, "");
   return isAmbiguousOrganizationRequest(normalized) || /(?:总结|汇总|复盘)/.test(normalized);
+}
+
+function isDirectConversationCandidate(text: string) {
+  const normalized = text.replace(/\s+/g, "").replace(/[。.!！?？]+$/, "");
+  if (!normalized || isExplicitTaskCommand(normalized) || isTimedTaskStatement(normalized) || requiresSemanticModelResolution(normalized)) return false;
+  return (
+    /^(?:好吧|好呀|好的|行吧|行|可以|知道了|明白了|谢谢|谢了|不用了|算了|继续|然后呢|还有呢|你觉得呢|你说呢|怎么看)$/.test(normalized) ||
+    /^(?:里面|其中|这份|这个|刚才那个).{0,10}(?:说的啥|说了什么|写了什么|什么内容|讲了什么|内容|看看|读一下|解析)$/.test(normalized) ||
+    /(?:你对|你觉得).{0,10}(?:这个家|家庭|我们家).{0,8}(?:印象|看法|感觉)/.test(normalized) ||
+    /(?:有点烦|难受|委屈|焦虑|累了|无聊|想聊天|陪我聊)/.test(normalized)
+  );
 }
 
 export function assistantRouteSemanticFallback(text: string, localRoute: AssistantRoute) {

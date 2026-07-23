@@ -25,6 +25,7 @@ export async function enqueueFamilyRecord(record: FamilyRecord) {
       title: record.title,
       summary: record.summary,
       owner_name: record.ownerName,
+      owner_member_id: record.ownerMemberId,
       updated_at: record.updatedAt,
       display_time: record.displayTime,
       due_at: record.dueAt,
@@ -60,7 +61,7 @@ export async function enqueueFamilyRecord(record: FamilyRecord) {
     return null;
   }
 
-  return (await res.json()) as { id: string };
+  return (await res.json()) as { deduplicated?: boolean; id: string; record?: FamilyRecord };
 }
 
 export async function updateFamilyRecord(record: Pick<FamilyRecord, "id" | "status" | "assignmentStatus" | "taskResponses">) {
@@ -187,11 +188,16 @@ export async function requestResourceInsight(record: FamilyRecord) {
 
     return (await res.json()) as {
       analysisText: string;
-      insightKind: "document" | "resume" | "health_checkup";
+      insightKind: "document" | "resume" | "health_checkup" | "invoice";
       memberIds: string[];
       question?: string;
       status: "needs_clarification" | "parsed";
       textLength: number;
+      extraction?: {
+        files: Array<{ confidence?: number; method: string; name: string; pageCount?: number; textLength: number }>;
+        textLength: number;
+        usedOcr: boolean;
+      };
     };
   } catch {
     return null;

@@ -9,11 +9,18 @@ export type ConversationTurn = {
   actorName?: string | null;
   assistantText: string;
   createdAt: string;
+  entityState?: ConversationEntityState;
   userText: string;
+};
+
+export type ConversationEntityState = {
+  activeResourceId?: string;
+  activeResourceTitle?: string;
 };
 
 export type ConversationContext = {
   activeTurns: ConversationTurn[];
+  entityState: ConversationEntityState;
   sessionId: string;
   summaryText: string;
 };
@@ -25,6 +32,7 @@ type StoredMetaEvent = {
     actorMemberId?: string | null;
     actorName?: string | null;
     assistantText?: string;
+    entityState?: ConversationEntityState;
     sessionId?: string;
     source?: string;
     summaryText?: string;
@@ -50,6 +58,7 @@ export async function prepareConversationContext(options: {
   const turns = events
     .filter(isConversationTurn)
     .map(toConversationTurn);
+  const entityState = [...turns].reverse().find((turn) => turn.entityState)?.entityState || {};
   const summaries = events.filter(isConversationSummary);
   const latestSummary = summaries.at(-1);
   const latestSummaryAt = latestSummary ? new Date(latestSummary.created_at).getTime() : 0;
@@ -71,6 +80,7 @@ export async function prepareConversationContext(options: {
     });
     return {
       activeTurns: [],
+      entityState,
       sessionId: options.sessionId,
       summaryText
     };
@@ -78,6 +88,7 @@ export async function prepareConversationContext(options: {
 
   return {
     activeTurns: turnsAfterSummary.slice(-8),
+    entityState,
     sessionId: options.sessionId,
     summaryText: latestSummary?.metadata?.summaryText || ""
   };
@@ -89,6 +100,7 @@ export async function appendConversationTurn(options: {
   assistantText: string;
   dataDir: string;
   familyId?: string | null;
+  entityState?: ConversationEntityState;
   now?: Date;
   recordDailyLog?: boolean;
   sessionId: string;
@@ -102,6 +114,7 @@ export async function appendConversationTurn(options: {
       actorMemberId: options.actorMemberId || null,
       actorName: options.actorName || null,
       assistantText: options.assistantText,
+      entityState: options.entityState,
       sessionId: options.sessionId,
       userText: options.userText
     },
@@ -244,6 +257,7 @@ function toConversationTurn(event: StoredMetaEvent): ConversationTurn {
     actorName: event.metadata?.actorName || null,
     assistantText: event.metadata?.assistantText || "",
     createdAt: event.created_at,
+    entityState: event.metadata?.entityState,
     userText: event.metadata?.userText || event.text
   };
 }

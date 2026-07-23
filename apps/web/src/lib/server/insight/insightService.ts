@@ -189,9 +189,15 @@ function parseStoredInsight(row: Record<string, unknown>): StoredInsight | null 
   const capability = insightCapabilitySchema.safeParse(summaryJson.capability);
   const batch = insightBatchSchema.safeParse(summaryJson.batch);
   if (!capability.success || !batch.success) return null;
-  const presentation = buildInsightPresentation(capability.data, batch.data);
+  const safeBatch = {
+    insights: batch.data.insights.filter((insight) => (
+      (insight.type !== "task_pattern" || insight.sourceIds.length >= 2) &&
+      !containsUnsupportedInference(`${insight.title} ${insight.summary} ${insight.suggestedAction?.text || ""}`)
+    ))
+  };
+  const presentation = buildInsightPresentation(capability.data, safeBatch);
   return {
-    batch: batch.data,
+    batch: safeBatch,
     capability: capability.data,
     createdAt: readString(row.created_at) || new Date(0).toISOString(),
     id: readString(row.id) || "",
@@ -202,6 +208,10 @@ function parseStoredInsight(row: Record<string, unknown>): StoredInsight | null 
     sourceFingerprint: readString(summaryJson.sourceFingerprint) || "",
     sourceIds: readStringArray(summaryJson.sourceIds)
   };
+}
+
+function containsUnsupportedInference(value: string) {
+  return /(?:可能|疑似|应该是|一定是|似乎).{0,12}(?:希望|想要|患病|生病|抑郁|焦虑|身体不好|关系不好|感情不好|有矛盾)|(?:内心|谁对谁错|不孝|自私|懒惰|有病)/i.test(value);
 }
 
 function idsByType(source: InsightSourceBundle, sourceType: InsightSourceType, allowedIds: string[]) {

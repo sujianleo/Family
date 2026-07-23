@@ -95,6 +95,7 @@ export type FamilyRecord = {
   title: string;
   summary: string;
   ownerName: string;
+  ownerMemberId?: string;
   createdByMemberId?: string;
   displayTime?: string;
   dueAt?: string;
@@ -127,6 +128,7 @@ export type FamilyRecord = {
   sourceAvatarSeed?: string;
   sourceFiles?: {
     cacheUrl?: string;
+    contentHash?: string;
     name: string;
     originalUrl?: string;
     previewUrl?: string;

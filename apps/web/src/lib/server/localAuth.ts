@@ -1,5 +1,7 @@
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { normalizePhoneNumber } from "../phoneAuth";
+import { isLiteBackend } from "./familyBackend";
+import { readLiteAccounts } from "./liteRepository";
 
 const sessionMaxAgeSeconds = 30 * 24 * 60 * 60;
 const secureCookieName = "__Host-family_session";
@@ -8,13 +10,14 @@ const attempts = new Map<string, { count: number; lockedUntil: number; windowSta
 
 type LocalAuthRole = "admin" | "member";
 type LocalAccount = {
+  familyId?: string;
   memberId: string;
   passwordHash: string;
   phone: string;
   role: LocalAuthRole;
   sub: string;
 };
-type LocalSession = { exp: number; iat: number; memberId: string; role: LocalAuthRole; sub: string };
+type LocalSession = { exp: number; familyId?: string; iat: number; memberId: string; role: LocalAuthRole; sub: string };
 
 export function isLocalAuthConfigured() {
   return Boolean(readLocalAccounts().length > 0 && process.env.FAMILY_APP_LOCAL_AUTH_SESSION_SECRET);
@@ -47,7 +50,7 @@ export function readLocalSession(request: Request) {
 
 export function localAuthContext(session?: LocalSession | null) {
   return {
-    familyId: process.env.FAMILY_APP_LOCAL_AUTH_FAMILY_ID || "local-family",
+    familyId: session?.familyId || process.env.FAMILY_APP_LOCAL_AUTH_FAMILY_ID || "local-family",
     memberId: session?.memberId || process.env.FAMILY_APP_LOCAL_AUTH_MEMBER_ID || "me",
     userId: session?.sub || "local-admin"
   };
@@ -85,6 +88,7 @@ function createSessionToken(account: LocalAccount) {
   const now = Math.floor(Date.now() / 1000);
   const payload: LocalSession = {
     exp: now + sessionMaxAgeSeconds,
+    familyId: account.familyId,
     iat: now,
     memberId: account.memberId,
     role: account.role,
@@ -106,6 +110,7 @@ function verifySessionToken(token: string) {
     if (!parsed.sub || !["admin", "member"].includes(parsed.role || "") || !parsed.exp || parsed.exp <= Math.floor(Date.now() / 1000)) return null;
     return {
       exp: parsed.exp,
+      familyId: parsed.familyId,
       iat: parsed.iat || 0,
       memberId: parsed.memberId || process.env.FAMILY_APP_LOCAL_AUTH_MEMBER_ID || "me",
       role: parsed.role as LocalAuthRole,
@@ -118,6 +123,9 @@ function verifySessionToken(token: string) {
 
 function readLocalAccounts(): LocalAccount[] {
   const accounts: LocalAccount[] = [];
+  if (isLiteBackend()) {
+    readLiteAccounts().forEach((account) => accounts.push(account));
+  }
   const primaryPhone = normalizePhoneNumber(process.env.FAMILY_APP_LOCAL_AUTH_PHONE || "");
   const primaryPasswordHash = process.env.FAMILY_APP_LOCAL_AUTH_PASSWORD_HASH || "";
   if (primaryPhone && primaryPasswordHash) {

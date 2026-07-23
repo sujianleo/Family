@@ -1,0 +1,19 @@
+services:
+  family:
+    image: "${FAMILY_APP_IMAGE:-ghcr.io/sujianleo/family:latest}"
+    container_name: family
+    ports:
+      - "${FAMILY_APP_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:-http://localhost:3000}"
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com}"
+      DEEPSEEK_MODEL_FAST: "${DEEPSEEK_MODEL_FAST:-deepseek-chat}"
+      DEEPSEEK_MODEL_DEEP: "${DEEPSEEK_MODEL_DEEP:-deepseek-reasoner}"
+      LANGSMITH_TRACING: "false"
+    volumes:
+      - family-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  family-data:

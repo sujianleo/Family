@@ -4,11 +4,14 @@ import { deepSummarySchema } from "./ai/schemas/summary.schema";
 import { createSummary } from "./eventStore";
 import { getDeepModelName, invokeDeepSeekDeepJson } from "./langchainAi";
 import { buildSummarySource, type CompactSummaryItem, type SummaryScope, type SummarySourceBundle, type SummaryType } from "./summarySourceBuilder";
+import { isLiteBackend } from "./familyBackend";
+import { readLiteFamilyMembers } from "./liteRepository";
 
 export const DEEP_SUMMARY_PROMPT_VERSION = "deep-summary-v1";
 
 export type GenerateDeepSummaryInput = {
   actorMemberId?: string | null;
+  actorName?: string | null;
   dataDir?: string;
   endTime: string;
   familyId: string;
@@ -56,12 +59,31 @@ type GenerateDeepSummaryOptions = {
 export async function generateDeepSummary(input: GenerateDeepSummaryInput, options: GenerateDeepSummaryOptions = {}) {
   const source = await buildSummarySource(input);
   const messages = buildDeepSummaryMessages(input, source);
-  const modelResult = options.invokeModel
-    ? await options.invokeModel(messages, source)
-    : await invokeDeepSeekDeepJson(messages, {
-        maxTokens: Number(process.env.DEEPSEEK_DEEP_SUMMARY_MAX_TOKENS || 1800),
-        timeoutMs: Number(process.env.DEEPSEEK_DEEP_SUMMARY_TIMEOUT_MS || process.env.DEEPSEEK_TIMEOUT_MS || 12000)
+  let modelResult: unknown;
+  if (options.invokeModel) {
+    modelResult = await options.invokeModel(messages, source);
+  } else {
+    const timeoutMs = Number(process.env.DEEPSEEK_DEEP_SUMMARY_TIMEOUT_MS || process.env.DEEPSEEK_TIMEOUT_MS || 30_000);
+    try {
+      modelResult = await invokeDeepSeekDeepJson(messages, {
+        familyId: input.familyId,
+        maxTokens: Number(process.env.DEEPSEEK_DEEP_SUMMARY_MAX_TOKENS || 4096),
+        operation: `deep_summary.${input.summaryType}`,
+        timeoutMs
       });
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("JSON")) throw error;
+      modelResult = await invokeDeepSeekDeepJson([
+        ...messages,
+        { role: "system", content: "上一次输出被截断。请显著压缩内容，每个数组最多 4 项，每项最多 40 个汉字，只输出完整合法 JSON。" }
+      ], {
+        familyId: input.familyId,
+        maxTokens: Number(process.env.DEEPSEEK_DEEP_SUMMARY_RETRY_MAX_TOKENS || 6144),
+        operation: `deep_summary.${input.summaryType}.retry`,
+        timeoutMs: Math.max(timeoutMs, 45_000)
+      });
+    }
+  }
 
   if (!modelResult) {
     throw new Error("DeepSeek V4 深度总结暂时不可用，请稍后重试。普通输入和快速回复不受影响。");
@@ -116,6 +138,7 @@ function buildDeepSummaryMessages(input: GenerateDeepSummaryInput, source: Summa
 }
 
 function buildDeepSummaryPrompt(input: GenerateDeepSummaryInput, source: SummarySourceBundle) {
+  const members = isLiteBackend() ? readLiteFamilyMembers() : familyMembers;
   return `deep-summary-v1
 你是家庭生活数据总结器。
 你只能基于提供的数据做总结。
@@ -126,13 +149,13 @@ function buildDeepSummaryPrompt(input: GenerateDeepSummaryInput, source: Summary
 你只能输出 JSON。
 
 总结对象：
-${input.scope}
+${input.scope === "personal" ? `个人：${input.actorName || input.actorMemberId || "当前成员"}` : "家庭整体"}
 
 时间范围：
 ${input.startTime} 到 ${input.endTime}
 
 家庭成员：
-${familyMembers.map((member) => `${member.displayName}(${member.id})`).join("、")}
+${members.map((member) => `${member.displayName}(${member.id})`).join("、")}
 
 数据：
 ${JSON.stringify(source.compactItems)}
@@ -186,7 +209,12 @@ ${JSON.stringify(source.compactItems)}
 7. sourceIds 必须来自输入数据。
 8. 建议要短、实际、低压力。
 9. 不做医疗、法律、投资确定性判断。
-10. 输出必须是合法 JSON。`;
+10. 输出必须是合法 JSON。
+11. 每个普通数组最多 6 项，每项尽量不超过 60 个汉字。
+12. memoryCandidates 最多 4 项，memberProfileHints 每位成员最多 3 条。
+13. 总输出保持精炼，必须在一次回复内闭合所有 JSON 字符串、数组和对象。
+14. personal 总结要像一张写给这个人的温暖生活小卡片，具体、克制、有温度，不写成数据报表，也不煽情。
+15. personal 的 summaryTitle 必须包含该成员称呼；没有足够事实时宁可说得简单，也不能编造。`;
 }
 
 function normalizeDeepSummaryJson(value: unknown, sourceItems: CompactSummaryItem[]): DeepSummaryJson {

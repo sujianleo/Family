@@ -117,6 +117,7 @@ export async function prepareTrustedAssistantContext(input: TrustedAssistantCont
         .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
         .slice(-20)
         .map((item) => ({
+          actorMemberId: item.actorMemberId,
           actorName: (item.actorName || "").slice(0, 40),
           createdAt: item.createdAt,
           sourceId: item.sourceId,
@@ -135,6 +136,7 @@ export async function prepareTrustedAssistantContext(input: TrustedAssistantCont
           id: organization.id,
           summaryText: organization.summaryText.slice(0, 180),
           timeline: organization.organization.timeline.slice(-6).map((item) => ({
+            actorMemberId: item.actorMemberId,
             actorName: (item.actorName || "").slice(0, 40),
             createdAt: item.createdAt,
             sourceId: item.sourceId,
@@ -242,7 +244,7 @@ export function selectFamilyRetrievalPlan(query: string): FamilyRetrievalPlan {
   if (hasQueryConcept(normalized, ["任务", "待办", "提醒", "完成", "办完", "做完", "搞定", "结束", "负责人", "谁做", "谁负责"])) {
     return plan(["tasks", "group_chat"]);
   }
-  if (queryHasRetrievalConcept(normalized, [0, 1, 2, 4, 5])) {
+  if (queryHasRetrievalConcept(normalized, [0, 1, 2, 4, 5, 6])) {
     return plan(["confirmed_memory", "resources", "group_chat"]);
   }
   if (/(?:投票|决定|评评理|约定|规则)/.test(normalized)) {
@@ -328,11 +330,12 @@ function retrievalTerms(query: string) {
 
 const familyRetrievalConcepts = [
   ["医保卡", "社保卡", "看病用的卡", "医疗卡", "蓝色卡片", "蓝本本"],
-  ["检查报告", "体检报告", "化验单", "检查材料", "就诊材料"],
+  ["检查报告", "检测报告", "体检报告", "化验单", "检查材料", "就诊材料", "基因检测", "医学遗传", "CNV", "拷贝数变异", "小票", "发票", "票据", "收据", "附件", "上传", "PDF", "图片", "照片", "截图", "图里", "画面"],
   ["钥匙", "门钥匙", "备用钥匙", "开门的钥匙"],
   ["完成", "办完", "做完", "搞定", "结束", "处理完"],
   ["位置", "放哪", "在哪", "哪里", "搁哪", "收哪", "放在", "收在"],
-  ["健康", "体检", "血压", "血糖", "血脂", "尿酸", "脂肪肝", "甲状腺", "复查"]
+  ["健康", "体检", "血压", "血糖", "血脂", "尿酸", "脂肪肝", "甲状腺", "复查"],
+  ["老婆", "媳妇", "媳妇儿", "妻子", "太太", "爱人", "老公", "丈夫", "先生", "配偶", "是谁", "叫啥", "叫什么"]
 ] as const;
 
 function queryHasRetrievalConcept(query: string, conceptIndexes: number[]) {

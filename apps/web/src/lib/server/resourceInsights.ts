@@ -1,22 +1,17 @@
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { resolveFamilyMemberMention } from "../assignment";
 import { familyMembers } from "../mockData";
 import type { FamilyMember } from "../types";
 import { writeMemberProfiles } from "./memberProfiles";
+import { extractResourceFiles, type ResourceExtractionFileInput } from "./resourceExtraction";
 
-type ResourceInsightFile = {
-  name: string;
-  originalUrl?: string;
-  size?: number;
-  text?: string;
-  type?: string;
-  url?: string;
-};
+type ResourceInsightFile = ResourceExtractionFileInput;
 
 type ResourceInsightPayload = {
   actorMemberId?: string;
   actorName?: string;
+  familyId?: string;
   recordId?: string;
   resourceTitle?: string;
   sourceFiles?: ResourceInsightFile[];
@@ -31,17 +26,16 @@ type ResourceInsightOptions = {
 };
 
 const defaultDataDir = "data";
-const maxDocumentExtractionBytes = 20 * 1024 * 1024;
-
 export async function processResourceInsight(payload: ResourceInsightPayload, options: ResourceInsightOptions = {}) {
   const dataDir = options.dataDir || defaultDataDir;
   const now = options.now || new Date();
   const sourceFiles = payload.sourceFiles || [];
-  const extractedTexts = await Promise.all(sourceFiles.map((file) => extractSourceFileText(file, dataDir)));
-  const rawContentText = extractedTexts.filter(Boolean).join("\n").trim();
-  const contentText = compactText(rawContentText);
-  const targetMembers = resolveMentionedMembers(rawContentText);
-  const insightKind = detectResourceInsightKind(rawContentText);
+  const extraction = await extractResourceFiles(sourceFiles, { dataDir });
+  const rawContentText = extraction.text.trim();
+  const analysisContentText = normalizeOcrSpacing(rawContentText);
+  const contentText = compactText(analysisContentText);
+  const targetMembers = resolveMentionedMembers(analysisContentText);
+  const insightKind = detectResourceInsightKind(analysisContentText);
 
   const resourceTitle = payload.resourceTitle || "未命名资料";
   if (!contentText) {
@@ -53,23 +47,25 @@ export async function processResourceInsight(payload: ResourceInsightPayload, op
       memberIds: [],
       question,
       status: "needs_clarification" as const,
-      textLength: 0
+      textLength: 0,
+      extraction: summarizeExtraction(extraction)
     };
   }
 
-  const factText = buildResourceFactText(resourceTitle, rawContentText);
+  const factText = buildResourceFactText(resourceTitle, analysisContentText);
   if ((insightKind === "health_checkup" || insightKind === "resume") && targetMembers?.length !== 1) {
     const question = targetMembers?.length
       ? `我识别出《${resourceTitle}》可能同时涉及多位家人。请确认这份${insightKind === "health_checkup" ? "体检报告" : "资料"}主要属于谁？`
       : `我已解析《${resourceTitle}》，但还不知道它属于哪位家人。请告诉我姓名或家庭称呼。`;
     await appendResourceParsedEvent(dataDir, createResourceQuestionEvent(payload, now, question, "member_unresolved", factText));
     return {
-      analysisText: `已解析《${resourceTitle}》，识别为${insightKind === "health_checkup" ? "健康体检资料" : "简历资料"}，但归属尚未确认。`,
+      analysisText: `已解析《${resourceTitle}》，识别为${insightKind === "health_checkup" ? "健康检查资料" : "简历资料"}，归属待确认。\n${factText}`.slice(0, 560),
       insightKind,
       memberIds: targetMembers?.map((member) => member.id) || [],
       question,
       status: "needs_clarification" as const,
-      textLength: contentText.length
+      textLength: contentText.length,
+      extraction: summarizeExtraction(extraction)
     };
   }
 
@@ -93,20 +89,23 @@ export async function processResourceInsight(payload: ResourceInsightPayload, op
         requiresConfirmation: insightKind === "health_checkup",
         resourceTitle: payload.resourceTitle || "",
         subjectUnresolved: !targetMembers?.length,
-        sensitiveCategory: insightKind === "health_checkup" ? "health" : undefined,
+        sensitiveCategory: insightKind === "health_checkup" ? "health" : insightKind === "invoice" ? "finance" : undefined,
+        excludedFromFamilyMemory: /虚构|测试数据|人工合成|仅供功能测试/.test(rawContentText),
+        synthetic: /虚构|测试数据|人工合成|仅供功能测试/.test(rawContentText),
         sourceDisclaimer: insightKind === "health_checkup" && /虚构|测试数据|人工合成/.test(rawContentText)
           ? "synthetic_document_content"
           : undefined,
         textLength: contentText.length
       },
       record_id: payload.recordId || null,
+      family_id: payload.familyId || null,
       space_id: payload.spaceId || null,
       text: factText,
       type: "resource_parsed"
     });
   }
 
-  if (options.refreshProfiles !== false) {
+  if (options.refreshProfiles !== false && (insightKind === "resume" || insightKind === "health_checkup")) {
     await writeMemberProfiles({ dataDir, now, useAi: options.useAiProfiles ?? true });
   }
 
@@ -115,7 +114,22 @@ export async function processResourceInsight(payload: ResourceInsightPayload, op
     insightKind,
     memberIds: targetMembers?.map((member) => member.id) || [],
     status: "parsed" as const,
-    textLength: contentText.length
+    textLength: contentText.length,
+    extraction: summarizeExtraction(extraction)
+  };
+}
+
+function summarizeExtraction(extraction: Awaited<ReturnType<typeof extractResourceFiles>>) {
+  return {
+    files: extraction.files.map((file) => ({
+      confidence: file.confidence,
+      method: file.method,
+      name: file.name,
+      pageCount: file.pageCount,
+      textLength: file.text.length
+    })),
+    textLength: extraction.textLength,
+    usedOcr: extraction.usedOcr
   };
 }
 
@@ -139,124 +153,13 @@ function resolveMentionedMembers(text: string) {
   return matchedMembers.length ? matchedMembers : null;
 }
 
-async function extractSourceFileText(file: ResourceInsightFile, dataDir: string) {
-  if (file.text?.trim()) {
-    return file.text.trim();
-  }
-
-  const isPdf = isPdfFile(file);
-  const isTextLike = isTextLikeFile(file);
-  const isWordDocument = isWordDocumentFile(file);
-  const isExcelDocument = isExcelDocumentFile(file);
-  if (!isPdf && !isTextLike && !isWordDocument && !isExcelDocument) {
-    return "";
-  }
-
-  if (file.size && file.size > maxDocumentExtractionBytes) {
-    return "";
-  }
-
-  const buffer = await readUploadedFileBuffer(file, dataDir);
-  if (!buffer) {
-    return "";
-  }
-
-  if (buffer.length > maxDocumentExtractionBytes) {
-    return "";
-  }
-
-  if (isPdf) {
-    const pdfText = await extractPdfText(buffer);
-    if (pdfText) {
-      return pdfText;
-    }
-  }
-
-  if (isTextLike) {
-    return buffer.toString("utf8");
-  }
-
-  if (isWordDocument) {
-    return extractOfficeText(buffer);
-  }
-
-  if (isExcelDocument) {
-    return extractExcelText(buffer);
-  }
-
-  return "";
-}
-
-async function readUploadedFileBuffer(file: ResourceInsightFile, dataDir: string) {
-  const fileUrl = file.originalUrl || file.url || "";
-  if (!fileUrl) {
-    return null;
-  }
-
-  try {
-    const url = new URL(fileUrl, "http://family.local");
-    if (url.pathname !== "/api/guest-uploads") {
-      return null;
-    }
-
-    const tusId = sanitizeSegment(url.searchParams.get("tus") || "");
-    if (tusId) {
-      return readFile(path.join(dataDir, "tus-uploads", tusId));
-    }
-
-    const relativeFile = sanitizeRelativePath(url.searchParams.get("file") || "");
-    if (relativeFile) {
-      return readFile(path.join(dataDir, "guest-uploads", relativeFile));
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
-async function extractPdfText(buffer: Buffer) {
-  try {
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: buffer });
-    try {
-      const result = await parser.getText();
-      return compactText(result.text || "");
-    } finally {
-      await parser.destroy();
-    }
-  } catch {
-    return "";
-  }
-}
-
-async function extractOfficeText(buffer: Buffer) {
-  try {
-    const { parseOffice } = await import("officeparser");
-    const document = await parseOffice(buffer);
-    return compactText(document.toText());
-  } catch {
-    return "";
-  }
-}
-
-async function extractExcelText(buffer: Buffer) {
-  try {
-    const XLSX = await import("xlsx");
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-    return compactText(workbook.SheetNames.map((sheetName) => {
-      const sheet = workbook.Sheets[sheetName];
-      return sheet ? `${sheetName}\n${XLSX.utils.sheet_to_csv(sheet)}` : "";
-    }).filter(Boolean).join("\n"));
-  } catch {
-    return "";
-  }
-}
-
 function buildResourceFactText(title: string, text: string) {
   const compact = compactText(text);
   if (detectResourceInsightKind(text) === "health_checkup") {
     return buildHealthCheckupFactText(title, compact);
+  }
+  if (detectResourceInsightKind(text) === "invoice") {
+    return buildInvoiceFactText(title, compact);
   }
   const occupation = extractLabeledValue(text, ["求职意向", "应聘岗位", "目标岗位", "职业", "职位", "岗位"], 32);
   const skills = extractLabeledValue(text, ["技能", "专业技能", "核心技能"], 80);
@@ -278,21 +181,60 @@ function buildResourceFactText(title: string, text: string) {
 
 function detectResourceInsightKind(text: string) {
   const compact = compactText(text);
-  if (/(?:健康)?体检报告|实验室检查|空腹血糖|糖化血红蛋白|血压\s*\d{2,3}\s*\/\s*\d{2,3}/i.test(compact)) {
+  if (/(?:健康)?体检报告|健康复查|健康检查|实验室检查|医学遗传|基因组|拷贝数变异|CNV(?:-seq)?|空腹血糖|糖化血红蛋白|血压\s*\d{2,3}\s*\/\s*\d{2,3}/i.test(compact)) {
     return "health_checkup" as const;
   }
   if (/简历|求职|应聘|技能|工作经历|项目经历|学历/.test(compact)) {
     return "resume" as const;
   }
+  if (/(?:电子)?发票|价税合计|发票号码|购买方|销售方|收款小票|订单号|金额合计/.test(compact)) {
+    return "invoice" as const;
+  }
   return "document" as const;
 }
 
+function buildInvoiceFactText(title: string, text: string) {
+  const facts = [`资料：${title}`, "发票/票据"];
+  const invoiceNumber = captureValue(text, /(?:发票号码|票据号码|订单号)\s*[:：]?\s*([A-Z0-9-]{6,32})/i);
+  const invoiceDate = captureValue(text, /(?:开票日期|交易日期|日期)\s*[:：]?\s*(20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}日?)/i);
+  const seller = captureValue(text, /(?:销售方|商户名称|收款方)\s*[:：]?\s*([^，。；;]{2,40})/i);
+  const buyer = captureValue(text, /(?:购买方|付款方)\s*[:：]?\s*([^，。；;]{2,40})/i);
+  const total = captureValue(text, /(?:价税合计|金额合计|合计)\s*(?:\(小写\))?\s*[:：￥¥]?\s*([0-9,]+(?:\.\d{1,2})?)/i);
+  const tax = captureValue(text, /(?:税额)\s*[:：￥¥]?\s*([0-9,]+(?:\.\d{1,2})?)/i);
+  if (invoiceNumber) facts.push(`号码：${invoiceNumber}`);
+  if (invoiceDate) facts.push(`日期：${invoiceDate}`);
+  if (seller) facts.push(`销售方：${seller}`);
+  if (buyer) facts.push(`购买方：${buyer}`);
+  if (total) facts.push(`含税合计：¥${total}`);
+  if (tax) facts.push(`税额：¥${tax}`);
+  const itemLines = [...text.matchAll(/(?:项目|商品|服务)\s*[:：]?\s*([^，。；;]{2,36})/gi)].map((match) => compactText(match[1])).filter(Boolean).slice(0, 4);
+  if (itemLines.length) facts.push(`项目：${itemLines.join("、")}`);
+  if (/虚构|测试数据|人工合成|仅供功能测试/.test(text)) facts.push("声明：虚构测试票据，不具备报销或财务效力");
+  return facts.join("。").slice(0, 480);
+}
+
 function buildHealthCheckupFactText(title: string, text: string) {
-  const facts = [`资料：${title}`, "健康体检报告"];
+  const isGeneticReport = /医学遗传|基因组|拷贝数变异|CNV(?:-seq)?/i.test(text);
+  const facts = [`资料：${title}`, isGeneticReport ? "医学遗传检测报告" : "健康体检报告"];
   const reportDate = captureValue(text, /(?:体检日期|检查日期|报告日期)\s*[:：]?\s*(20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}日?)/i);
   const memberLabel = captureValue(text, /家庭成员标识\s*[:：]?\s*([^，。；;\s]{1,12})/);
   if (memberLabel) facts.push(`家庭成员：${memberLabel}`);
   if (reportDate) facts.push(`体检日期：${reportDate}`);
+
+  if (isGeneticReport) {
+    const method = captureValue(text, /检测方法\s*[:：]?\s*([\s\S]{3,80}?)(?=检测结论|检测结果|建议\s*[:：]|$)/i);
+    const conclusionBlock = compactText(captureValue(text, /检测结论\s*[:：]?\s*([\s\S]{2,180}?)(?=建议\s*[:：]|结果说明|注意事项|操作人|报告人|$)/i));
+    if (method) facts.push(`检测方法：${method}`);
+    if (/未检测到[^。；;]{0,36}拷贝数变异/.test(conclusionBlock)) {
+      facts.push("报告结论：全基因组范围内未检测到拷贝数变异");
+    } else if (conclusionBlock) {
+      facts.push(`报告结论：${conclusionBlock.slice(0, 120)}`);
+    }
+    if (reportDate) {
+      facts[facts.findIndex((item) => item.startsWith("体检日期："))] = `报告日期：${reportDate}`;
+    }
+    facts.push("说明：检测结果不能替代医生结合临床情况作出的诊断");
+  }
 
   const abnormalMetrics = [
     captureMetric(text, "血压", /\d{2,3}\s*\/\s*\d{2,3}\s*mmHg/i),
@@ -394,56 +336,43 @@ function createResourceQuestionEvent(
     actor_name: payload.actorName || "上传者",
     created_at: now.toISOString(),
     id: `meta-${now.getTime()}-resource-question-${Math.random().toString(36).slice(2, 8)}`,
+    family_id: payload.familyId || null,
     metadata: {
       action: "resource.parse_question",
       factText,
       fileNames: (payload.sourceFiles || []).map((file) => file.name),
       question,
       reason,
-      resourceTitle: payload.resourceTitle || ""
+      resourceTitle: payload.resourceTitle || "",
+      excludedFromFamilyMemory: /虚构|测试数据|人工合成|仅供功能测试/.test(factText),
+      synthetic: /虚构|测试数据|人工合成|仅供功能测试/.test(factText)
     },
     record_id: payload.recordId || null,
     space_id: payload.spaceId || null,
-    text: question,
+    text: factText ? `${factText}。归属待确认` : question,
     type: "resource_parse_question"
   };
 }
 
-function formatInsightKind(kind: "document" | "resume" | "health_checkup") {
+function formatInsightKind(kind: "document" | "resume" | "health_checkup" | "invoice") {
   if (kind === "health_checkup") return "健康体检资料";
   if (kind === "resume") return "简历资料";
+  if (kind === "invoice") return "发票票据";
   return "普通文档";
-}
-
-function isPdfFile(file: ResourceInsightFile) {
-  return /pdf/i.test(file.type || "") || /\.pdf$/i.test(file.name);
-}
-
-function isTextLikeFile(file: ResourceInsightFile) {
-  return /^text\//i.test(file.type || "") || /\.(txt|md|csv|json)$/i.test(file.name);
-}
-
-function isWordDocumentFile(file: ResourceInsightFile) {
-  return /\.docx$/i.test(file.name);
-}
-
-function isExcelDocumentFile(file: ResourceInsightFile) {
-  return /\.xlsx$/i.test(file.name);
 }
 
 function compactText(text: string) {
   return text.replace(/\s+/g, " ").trim();
 }
 
-function sanitizeRelativePath(value: string) {
-  const normalized = path.normalize(decodeURIComponent(value)).replace(/^(\.\.[/\\])+/, "");
+function normalizeOcrSpacing(text: string) {
+  let normalized = text;
+  for (let pass = 0; pass < 8; pass += 1) {
+    const next = normalized.replace(/([\u4e00-\u9fff])\s+([\u4e00-\u9fff])/g, "$1$2");
+    if (next === normalized) break;
+    normalized = next;
+  }
   return normalized
-    .split(path.sep)
-    .map(sanitizeSegment)
-    .filter(Boolean)
-    .join(path.sep);
-}
-
-function sanitizeSegment(value: string) {
-  return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 96);
+    .replace(/(\d)\s*([/.:%-])\s*(?=\d)/g, "$1$2")
+    .replace(/\b(HbA1c|LDL-C|TI-RADS|mmHg|mmol\/L|U\/L)\s+/gi, "$1 ");
 }

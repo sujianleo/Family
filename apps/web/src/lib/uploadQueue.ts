@@ -27,6 +27,9 @@ export async function uploadFilesWithTus(
     onProgress?: (progress: number) => void;
   }
 ) {
+  if (process.env.NEXT_PUBLIC_FAMILY_APP_BACKEND === "sqlite") {
+    return uploadFilesToLiteStorage(files, options);
+  }
   const uppy = new Uppy<{ messageId: string; uploadIndex: number }, Record<string, never>>({
     autoProceed: false,
     allowMultipleUploadBatches: false,
@@ -92,6 +95,32 @@ export async function uploadFilesWithTus(
   } finally {
     uppy.destroy();
   }
+}
+
+async function uploadFilesToLiteStorage(
+  files: File[],
+  options: {
+    messageId: string;
+    onFileProgress?: (fileIndex: number, progress: number) => void;
+    onProgress?: (progress: number) => void;
+  }
+) {
+  const formData = new FormData();
+  formData.set("recordId", "family-lite");
+  formData.set("messageId", options.messageId);
+  files.forEach((file) => formData.append("files", file, file.name));
+  const response = await fetch("/api/guest-uploads", {
+    body: formData,
+    credentials: "include",
+    method: "POST"
+  });
+  const payload = await response.json().catch(() => ({})) as { detail?: string; files?: UploadedFileReference[] };
+  if (!response.ok || !Array.isArray(payload.files) || payload.files.length !== files.length) {
+    throw new Error(payload.detail || "Lite 文件上传失败。");
+  }
+  files.forEach((_file, index) => options.onFileProgress?.(index, 100));
+  options.onProgress?.(100);
+  return payload.files;
 }
 
 async function addServerPreviews(files: UploadedFileReference[]) {

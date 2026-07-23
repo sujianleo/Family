@@ -11,6 +11,8 @@ import { invokeDeepSeekJson } from "@/lib/server/langchainAi";
 import { detectDangerousOperation } from "@/lib/safetyGuard";
 import { readFamilyMembersForContext } from "@/lib/server/familyMembers";
 import { appActionCatalog } from "@/lib/appActionCatalog";
+import { prepareConversationContext } from "@/lib/server/conversationMemory";
+import { resolveContextualKnowledgeInput } from "@/lib/server/contextualKnowledge";
 
 type AutomationActionRequest = {
   action_id?: string;
@@ -135,10 +137,22 @@ export async function POST(request: Request) {
     }
     if (action.requiresConfirmation && !hasValidConfirmation(body, { actionId: action.id, actorMemberId, parameters })) {
       if (action.id === "memory.save") {
+        const sessionId = readString(parameters.session_id);
+        const conversationContext = sessionId
+          ? await prepareConversationContext({
+              actorMemberId,
+              dataDir: "data",
+              sessionId
+            })
+          : undefined;
+        const contextualResolution = resolveContextualKnowledgeInput(
+          readString(parameters.text),
+          conversationContext
+        );
         const candidate = await extractKnowledgeCandidate(
           {
-            subject: readString(parameters.subject),
-            text: readString(parameters.text)
+            subject: contextualResolution?.subject || readString(parameters.subject),
+            text: contextualResolution?.text || readString(parameters.text)
           },
           {
             invokeModel: async ({ prompt, userInput }) => invokeDeepSeekJson(
@@ -158,7 +172,7 @@ export async function POST(request: Request) {
         );
         parameters = {
           ...parameters,
-          evidence_text: candidate.evidenceText,
+          evidence_text: contextualResolution?.evidenceText || candidate.evidenceText,
           fact: candidate.fact,
           memory_type: candidate.memoryType,
           source_raw_event_id: rawEvent.id,
@@ -216,6 +230,12 @@ async function createConfirmationResponse(input: {
         tags: Array.isArray(parameters.tags) ? parameters.tags.map(String).filter(Boolean) : []
       }
     : null;
+  const resourceOwnerCandidate = input.actionId === "resource.assign_owner"
+    ? {
+        ownerName: readString(parameters.owner_name),
+        resourceTitle: readString(parameters.resource_title)
+      }
+    : null;
   const confirmation = {
     actionId: input.actionId,
     parameters,
@@ -246,7 +266,9 @@ async function createConfirmationResponse(input: {
     display: { target: "inline_assistant", type: "confirmation_card", dismissible: true, requiresConfirmation: true },
     status: "waiting_confirmation",
     userReply: candidate?.fact
-      ? `我整理成长期记忆候选了：\n${candidate.subject}：${candidate.fact}\n类型：${formatMemoryType(candidate.memoryType)}\n确认后我才会记住。`
+      ? `我先把这条放在待确认里，还没有写进长期记忆：\n${candidate.subject}：${candidate.fact}\n如果这是稳定的${formatMemoryType(candidate.memoryType)}，你确认后我再记住。`
+      : resourceOwnerCandidate?.ownerName
+        ? `准备把《${resourceOwnerCandidate.resourceTitle || "这份资料"}》的归属改为${resourceOwnerCandidate.ownerName}。确认后才会写入。`
       : "此操作会修改家庭数据，请确认后再执行。"
   };
 }

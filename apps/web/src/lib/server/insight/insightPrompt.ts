@@ -46,6 +46,9 @@ ${JSON.stringify(input.source.items)}
 7. reminder_candidate 或任何 suggestedAction 都只是候选，必须 requiresConfirmation=true。
 8. suggestedAction 仅在来源明确支持一个低压力计划建议时使用：
    {"action":"create_plan","label":"创建计划","requiresConfirmation":true,"text":"建议内容"}
-9. 没有足够证据就返回 {"insights":[]}。
-10. 最多 6 条；title 不超过 24 个汉字，summary 不超过 80 个汉字。`;
+9. 当至少两条不同的任务来源明确指向同一件家庭事项时，可以输出 task_pattern，并温和询问是否整理为一个计划；不得声称已经合并，也不得删除或改写原任务。
+10. task_pattern 的 sourceIds 必须包含至少两条不同任务来源；证据不足时不要为了“聪明”强行关联。
+11. 没有足够证据就返回 {"insights":[]}。
+12. 不推测人物动机、愿望、感情、心理状态或没有说出口的意图；只能描述可观察到的记录关联。
+13. 最多 6 条；title 不超过 24 个汉字，summary 不超过 80 个汉字。`;
 }

@@ -71,7 +71,7 @@ export type SummaryInput = {
   startTime: string;
   summaryJson: Record<string, unknown>;
   summaryText: string;
-  summaryType: "daily" | "weekly" | "monthly" | "custom";
+  summaryType: "daily" | "weekly" | "monthly" | "yearly" | "custom";
 };
 
 const defaultDataDir = "data";

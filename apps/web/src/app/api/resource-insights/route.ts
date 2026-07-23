@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     const result = await processResourceInsight({
       actorMemberId: readString(body.actor_member_id) || context.memberId,
       actorName: readString(body.actor_name),
+      familyId: context.familyId,
       recordId: readString(body.record_id),
       resourceTitle: readString(body.resource_title),
       sourceFiles: Array.isArray(body.source_files)

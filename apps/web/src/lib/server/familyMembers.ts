@@ -1,9 +1,14 @@
 import type { FamilyMember } from "../types";
 import type { FamilyRequestContext } from "./familyRequestContext";
+import { isLiteBackend } from "./familyBackend";
+import { readLiteFamilyMembers } from "./liteRepository";
 import { readFamilyMembersWithOverrides } from "./memberOverrides";
 import { createServiceSupabaseClient } from "./supabaseServer";
 
 export async function readFamilyMembersForContext(context: FamilyRequestContext): Promise<FamilyMember[]> {
+  if (isLiteBackend()) {
+    return readLiteFamilyMembers();
+  }
   const service = createServiceSupabaseClient() as any;
   if (!service || !isUuid(context.familyId)) {
     return readFamilyMembersWithOverrides("data");

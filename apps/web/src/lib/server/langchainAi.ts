@@ -4,6 +4,7 @@ import type { BaseMessageLike } from "@langchain/core/messages";
 import type { ChatOpenAIResponseFormat } from "@langchain/openai";
 import { recordApiUsage } from "./apiUsage";
 import { readAiTuningProfileSync } from "./aiTuning";
+import { readLiteAiConfig } from "./liteAiConfig";
 
 export type LangChainJsonOptions = {
   apiKey?: string;
@@ -27,15 +28,20 @@ export type DuckDuckGoSearchResult = {
 const deepseekBaseUrl = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
 const webSearchTimeoutMs = Number(process.env.WEB_SEARCH_TIMEOUT_MS || 2500);
 export function getFastModelName() {
-  return process.env.DEEPSEEK_MODEL_FAST || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+  return process.env.DEEPSEEK_MODEL_FAST || process.env.DEEPSEEK_MODEL || readLiteAiConfig()?.fastModel || "deepseek-v4-flash";
 }
 
 export function getDeepModelName() {
-  return process.env.DEEPSEEK_MODEL_DEEP || "deepseek-v4-pro";
+  return process.env.DEEPSEEK_MODEL_DEEP || readLiteAiConfig()?.deepModel || "deepseek-v4-pro";
+}
+
+export function hasDeepSeekConfiguration() {
+  return Boolean(process.env.DEEPSEEK_API_KEY || readLiteAiConfig()?.apiKey);
 }
 
 export function createDeepSeekChatModel(options: LangChainJsonOptions = {}) {
-  const apiKey = options.apiKey || process.env.DEEPSEEK_API_KEY;
+  const liteConfig = readLiteAiConfig();
+  const apiKey = options.apiKey || liteConfig?.apiKey || process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
     return null;
   }
@@ -45,7 +51,7 @@ export function createDeepSeekChatModel(options: LangChainJsonOptions = {}) {
   return new ChatOpenAI({
     apiKey,
     configuration: {
-      baseURL: options.baseUrl || deepseekBaseUrl
+      baseURL: options.baseUrl || liteConfig?.endpoint || deepseekBaseUrl
     },
     maxRetries: tuned?.maxRetries ?? 1,
     maxTokens: options.maxTokens,
@@ -101,7 +107,7 @@ export async function invokeDeepSeekJson(messages: BaseMessageLike[], options: L
     return null;
   }
 
-  return JSON.parse(content) as unknown;
+  return parseModelJson(content);
 }
 
 export async function invokeDeepSeekDeepJson(messages: BaseMessageLike[], options: LangChainJsonOptions = {}) {
@@ -135,7 +141,21 @@ export async function invokeDeepSeekDeepJson(messages: BaseMessageLike[], option
     return null;
   }
 
-  return JSON.parse(content) as unknown;
+  return parseModelJson(content);
+}
+
+function parseModelJson(content: string) {
+  const trimmed = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  const objectStart = trimmed.indexOf("{");
+  const objectEnd = trimmed.lastIndexOf("}");
+  if (objectStart < 0 || objectEnd <= objectStart) {
+    throw new Error("AI 返回的 JSON 不完整，请重试。");
+  }
+  try {
+    return JSON.parse(trimmed.slice(objectStart, objectEnd + 1)) as unknown;
+  } catch {
+    throw new Error("AI 返回的 JSON 格式不完整，请重试。");
+  }
 }
 
 export async function invokeDeepSeekText(messages: BaseMessageLike[], options: LangChainJsonOptions = {}) {

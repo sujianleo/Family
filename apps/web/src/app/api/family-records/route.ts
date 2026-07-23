@@ -1,18 +1,11 @@
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
-import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { familyMembers } from "@/lib/mockData";
 import { FamilyRequestContextError, requireFamilyRequestContext } from "@/lib/server/familyRequestContext";
+import { FamilyRecordStoreError, createFamilyRecordStore } from "@/lib/server/familyRecordStore";
 import { cancelRecordNotifications, createRecordNotifications } from "@/lib/server/notificationStore";
-import { readSupabaseServerUrl } from "@/lib/server/supabaseConfig";
-import type { AssignmentStatus, Database, FamilyRecord, FamilyRecordAudience, FamilyRecordKind, FamilyRecordStatus, Json } from "@/lib/types";
+import type { AssignmentStatus, FamilyRecord, FamilyRecordAudience, FamilyRecordKind, FamilyRecordStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
-
-const supabaseUrl = readSupabaseServerUrl();
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const fallbackDbDir = "data";
-const fallbackRecordsPath = "data/family-records.jsonl";
 
 const recordKinds = new Set<FamilyRecordKind>(["task", "note", "link", "media"]);
 const recordStatuses = new Set<FamilyRecordStatus>(["todo", "doing", "done", "saved"]);
@@ -20,201 +13,56 @@ const audiences = new Set<FamilyRecordAudience>(["core", "guest"]);
 const assignmentStatuses = new Set<AssignmentStatus>(["suggested", "assigned", "accepted", "done"]);
 
 export async function GET(request: Request) {
-  let context;
   try {
-    context = await requireFamilyRequestContext(request);
+    const context = await requireFamilyRequestContext(request);
+    const store = createFamilyRecordStore();
+    return NextResponse.json({ backend: store.backend, records: await store.list(context.familyId) });
   } catch (error) {
-    return requestContextErrorResponse(error);
+    return errorResponse(error, "家庭记录读取失败。");
   }
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    if (!canUseFileFallback()) {
-      return NextResponse.json({ detail: "生产环境必须配置 Supabase 存储。" }, { status: 503 });
-    }
-    return NextResponse.json({ records: await readFallbackRecords() });
-  }
-
-  const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
-    auth: { persistSession: false }
-  });
-  const { data, error } = await supabase
-    .from("family_records")
-    .select(
-      "id, member_id, space_id, created_by_member_id, kind, title, summary, status, tags, assignment_status, assignment_reason, assignee_member_ids, audience, updated_at, metadata"
-    )
-    .eq("family_id", context.familyId)
-    .order("updated_at", { ascending: false })
-    .limit(200);
-
-  if (error) {
-    return NextResponse.json({ detail: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    records: (data || []).map((row) => {
-      const metadata = readRecordMetadata(row.metadata);
-      return {
-        ...metadata,
-        id: row.id,
-        kind: recordKinds.has(row.kind as FamilyRecordKind) ? (row.kind as FamilyRecordKind) : "note",
-        title: row.title || metadata.title || "未命名记录",
-        summary: row.summary || metadata.summary || "",
-        ownerName: metadata.ownerName || "家人",
-        createdByMemberId: row.created_by_member_id || metadata.createdByMemberId,
-        spaceId: row.space_id || metadata.spaceId,
-        assigneeMemberIds: Array.isArray(row.assignee_member_ids) ? row.assignee_member_ids : metadata.assigneeMemberIds || [],
-        audience: audiences.has(row.audience as FamilyRecordAudience) ? (row.audience as FamilyRecordAudience) : metadata.audience || "core",
-        assignmentStatus: assignmentStatuses.has(row.assignment_status as AssignmentStatus)
-          ? (row.assignment_status as AssignmentStatus)
-          : metadata.assignmentStatus || "assigned",
-        assignmentReason: row.assignment_reason || metadata.assignmentReason || "",
-        status: recordStatuses.has(row.status as FamilyRecordStatus) ? (row.status as FamilyRecordStatus) : metadata.status || "saved",
-        occurredAt: metadata.occurredAt || row.updated_at,
-        updatedAt: metadata.updatedAt || formatRecordUpdatedAt(row.updated_at),
-        tags: Array.isArray(row.tags) ? row.tags : metadata.tags || []
-      } satisfies FamilyRecord;
-    })
-  });
 }
 
 export async function POST(request: Request) {
   try {
     const context = await requireFamilyRequestContext(request);
     const body = (await request.json()) as Partial<RecordPayload>;
-    const familyId = context.familyId;
-    const memberId = context.memberId || null;
-    let spaceId = normalizeUuid(readString(body.space_id) || process.env.SUPABASE_DEFAULT_CORE_SPACE_ID) || null;
-    const createdByMemberId = memberId;
-    const kind = recordKinds.has(body.kind as FamilyRecordKind) ? (body.kind as FamilyRecordKind) : "note";
-    const status = recordStatuses.has(body.status as FamilyRecordStatus) ? (body.status as FamilyRecordStatus) : "saved";
-    const audience = audiences.has(body.audience as FamilyRecordAudience) ? (body.audience as FamilyRecordAudience) : "core";
-    const assignmentStatus = assignmentStatuses.has(body.assignment_status as AssignmentStatus)
-      ? (body.assignment_status as AssignmentStatus)
-      : "assigned";
     const title = readString(body.title);
-    const requestedAssigneeMemberIds = Array.isArray(body.assignee_member_ids)
-      ? [...new Set(body.assignee_member_ids.filter((id): id is string => typeof id === "string" && Boolean(id.trim())).map((id) => id.trim()))]
-      : [];
+    if (!title) return NextResponse.json({ detail: "缺少记录标题。" }, { status: 400 });
 
-    if (!title) {
-      return NextResponse.json({ detail: "缺少记录标题。" }, { status: 400 });
-    }
-
-    if (!supabaseUrl || !supabaseServiceRoleKey || !familyId) {
-      if (!canUseFileFallback()) {
-        return NextResponse.json({ detail: "生产环境必须配置 Supabase 存储。" }, { status: 503 });
-      }
-      const allowedLocalMemberIds = new Set(
-        familyMembers
-          .filter((member) => member.relationshipRole !== "guest" && !member.householdRoles?.includes("assistant"))
-          .map((member) => member.id)
-      );
-      if (requestedAssigneeMemberIds.some((id) => !allowedLocalMemberIds.has(id))) {
-        return NextResponse.json({ detail: "任务负责人不属于当前家庭。" }, { status: 400 });
-      }
-      const fallbackRecord = buildFallbackRecord({ ...body, assignee_member_ids: requestedAssigneeMemberIds }, {
-        assignmentStatus,
-        audience,
-        kind,
-        status,
-        title
-      });
-      await appendFallbackRecord(fallbackRecord);
-      await createRecordNotifications(context, toNotificationRecord(fallbackRecord));
-      return NextResponse.json({ id: fallbackRecord.id, storage: "file-fallback" });
-    }
-
-    const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
-      auth: { persistSession: false }
+    const record = buildFamilyRecord(body, {
+      assignmentStatus: assignmentStatuses.has(body.assignment_status as AssignmentStatus) ? body.assignment_status as AssignmentStatus : "assigned",
+      audience: audiences.has(body.audience as FamilyRecordAudience) ? body.audience as FamilyRecordAudience : "core",
+      createdByMemberId: context.memberId,
+      kind: recordKinds.has(body.kind as FamilyRecordKind) ? body.kind as FamilyRecordKind : "note",
+      status: recordStatuses.has(body.status as FamilyRecordStatus) ? body.status as FamilyRecordStatus : "saved",
+      title
     });
-    const recordId = normalizeUuid(body.id);
-    const { data: existingRecord, error: existingRecordError } = recordId
-      ? await supabase
-          .from("family_records")
-          .select("family_id,member_id,created_by_member_id")
-          .eq("id", recordId)
-          .maybeSingle()
-      : { data: null, error: null };
-    if (existingRecordError) {
-      return NextResponse.json({ detail: existingRecordError.message }, { status: 500 });
-    }
-    if (existingRecord && existingRecord.family_id !== familyId) {
-      return NextResponse.json({ detail: "记录不存在。" }, { status: 404 });
-    }
-    if (!spaceId) {
-      const { data: coreSpace, error: coreSpaceError } = await supabase
-        .from("family_spaces")
-        .select("id")
-        .eq("family_id", familyId)
-        .eq("space_type", "core")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (coreSpaceError || !coreSpace?.id) {
-        return NextResponse.json({ detail: "家庭核心空间尚未创建。" }, { status: 503 });
-      }
-      spaceId = coreSpace.id;
-    }
-    if (requestedAssigneeMemberIds.length) {
-      const { data: assignees, error: assigneeError } = await supabase
-        .from("family_members")
-        .select("id, relationship_role, household_roles")
-        .eq("family_id", familyId)
-        .in("id", requestedAssigneeMemberIds);
-      if (assigneeError) {
-        return NextResponse.json({ detail: assigneeError.message }, { status: 500 });
-      }
-      const eligibleIds = new Set(
-        (assignees || [])
-          .filter((member) => member.relationship_role !== "guest" && !(Array.isArray(member.household_roles) && member.household_roles.includes("assistant")))
-          .map((member) => member.id)
+    const store = createFamilyRecordStore();
+    const contentHashes = new Set(
+      (record.sourceFiles || [])
+        .map((file) => readString(file.contentHash))
+        .filter(Boolean)
+    );
+    if (contentHashes.size) {
+      const existing = (await store.list(context.familyId)).find((candidate) =>
+        (candidate.sourceFiles || []).some((file) =>
+          contentHashes.has(readString(file.contentHash)) || matchesLegacyUploadedFile(file, record.sourceFiles || [])
+        )
       );
-      if (requestedAssigneeMemberIds.some((id) => !eligibleIds.has(id))) {
-        return NextResponse.json({ detail: "任务负责人不属于当前家庭。" }, { status: 400 });
+      if (existing) {
+        return NextResponse.json({
+          backend: store.backend,
+          deduplicated: true,
+          id: existing.id,
+          record: existing
+        });
       }
     }
-    const { data, error } = await supabase
-      .from("family_records")
-      .upsert({
-        ...(recordId ? { id: recordId } : {}),
-        family_id: familyId,
-        member_id: existingRecord?.member_id || memberId,
-        space_id: spaceId,
-        created_by_member_id: existingRecord?.created_by_member_id || createdByMemberId,
-        assignee_member_ids: requestedAssigneeMemberIds,
-        audience,
-        assignment_status: assignmentStatus,
-        assignment_reason: readString(body.assignment_reason),
-        kind,
-        title: title.slice(0, 80),
-        summary: readString(body.summary),
-        status,
-        tags: Array.isArray(body.tags) ? body.tags.filter((tag): tag is string => typeof tag === "string") : [],
-        metadata: toJson(buildRecordMetadata(body))
-      }, { onConflict: "id" })
-      .select("id")
-      .single();
-
-    if (error) {
-      return NextResponse.json({ detail: error.message }, { status: 500 });
-    }
-
-    await createRecordNotifications(context, {
-      id: readString(body.id) || data.id,
-      title,
-      kind,
-      status,
-      assigneeMemberIds: requestedAssigneeMemberIds,
-      chatMembers: Array.isArray(body.chat_members) ? body.chat_members.filter((id): id is string => typeof id === "string") : [],
-      chatMessages: Array.isArray(body.chat_messages) ? body.chat_messages : [],
-      dueAt: readString(body.due_at) || undefined,
-      reminderOffsets: readReminderOffsets(body.reminder_offsets)
-    });
-    return NextResponse.json({ id: data.id });
+    const saved = await store.save({ familyId: context.familyId, memberId: context.memberId, record });
+    await createRecordNotifications(context, toNotificationRecord(saved));
+    return NextResponse.json({ backend: store.backend, deduplicated: false, id: saved.id, record: saved });
   } catch (error) {
-    if (error instanceof FamilyRequestContextError) {
-      return NextResponse.json({ detail: error.message }, { status: error.status });
-    }
-    return NextResponse.json({ detail: error instanceof Error ? error.message : "记录保存失败。" }, { status: 500 });
+    return errorResponse(error, "记录保存失败。");
   }
 }
 
@@ -227,74 +75,26 @@ export async function PATCH(request: Request) {
       status?: unknown;
       task_responses?: unknown;
     };
-    const id = normalizeUuid(body.id);
+    const id = readString(body.id);
     const status = recordStatuses.has(body.status as FamilyRecordStatus) ? body.status as FamilyRecordStatus : null;
     const assignmentStatus = assignmentStatuses.has(body.assignment_status as AssignmentStatus)
       ? body.assignment_status as AssignmentStatus
-      : null;
-    if (!id || !status) {
-      return NextResponse.json({ detail: "缺少有效记录 ID 或状态。" }, { status: 400 });
-    }
+      : undefined;
+    if (!id || !status) return NextResponse.json({ detail: "缺少有效记录 ID 或状态。" }, { status: 400 });
 
-    if (!supabaseUrl || !supabaseServiceRoleKey || !context.familyId) {
-      if (!canUseFileFallback()) {
-        return NextResponse.json({ detail: "生产环境必须配置 Supabase 存储。" }, { status: 503 });
-      }
-      const records = await readFallbackRecords();
-      let found = false;
-      const updated = records.map((record) => {
-        if (record.id !== id) return record;
-        found = true;
-        return {
-          ...record,
-          assignmentStatus: assignmentStatus || record.assignmentStatus,
-          status,
-          taskResponses: Array.isArray(body.task_responses)
-            ? body.task_responses as FamilyRecord["taskResponses"]
-            : record.taskResponses,
-          updatedAt: "刚刚"
-        };
-      });
-      if (!found) return NextResponse.json({ detail: "记录不存在。" }, { status: 404 });
-      await writeFallbackRecords(updated);
-      if (status === "done") await cancelRecordNotifications(context, id);
-      return NextResponse.json({ id, status });
-    }
-
-    const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
-      auth: { persistSession: false }
+    const store = createFamilyRecordStore();
+    const updated = await store.update({
+      assignmentStatus,
+      familyId: context.familyId,
+      id,
+      status,
+      taskResponses: Array.isArray(body.task_responses) ? body.task_responses as FamilyRecord["taskResponses"] : undefined
     });
-    const { data: existing, error: readError } = await supabase
-      .from("family_records")
-      .select("metadata")
-      .eq("id", id)
-      .eq("family_id", context.familyId)
-      .maybeSingle();
-    if (readError) return NextResponse.json({ detail: readError.message }, { status: 500 });
-    if (!existing) return NextResponse.json({ detail: "记录不存在。" }, { status: 404 });
-    const metadata = {
-      ...readRecordMetadata(existing.metadata),
-      ...(Array.isArray(body.task_responses) ? { taskResponses: body.task_responses } : {}),
-      updatedAt: "刚刚"
-    };
-    const { error } = await supabase
-      .from("family_records")
-      .update({
-        ...(assignmentStatus ? { assignment_status: assignmentStatus } : {}),
-        metadata: toJson(metadata),
-        status,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", id)
-      .eq("family_id", context.familyId);
-    if (error) return NextResponse.json({ detail: error.message }, { status: 500 });
+    if (!updated) return NextResponse.json({ detail: "记录不存在。" }, { status: 404 });
     if (status === "done") await cancelRecordNotifications(context, id);
-    return NextResponse.json({ id, status });
+    return NextResponse.json({ backend: store.backend, id, status });
   } catch (error) {
-    if (error instanceof FamilyRequestContextError) {
-      return NextResponse.json({ detail: error.message }, { status: error.status });
-    }
-    return NextResponse.json({ detail: error instanceof Error ? error.message : "记录更新失败。" }, { status: 500 });
+    return errorResponse(error, "记录更新失败。");
   }
 }
 
@@ -302,155 +102,86 @@ export async function DELETE(request: Request) {
   try {
     const context = await requireFamilyRequestContext(request);
     const body = (await request.json().catch(() => ({}))) as { id?: unknown };
-    const requestedId = readString(body.id);
-    if (!requestedId) {
-      return NextResponse.json({ detail: "缺少记录 ID。" }, { status: 400 });
-    }
+    const id = readString(body.id);
+    if (!id) return NextResponse.json({ detail: "缺少记录 ID。" }, { status: 400 });
 
-    if (!supabaseUrl || !supabaseServiceRoleKey || !context.familyId) {
-      if (!canUseFileFallback()) {
-        return NextResponse.json({ detail: "生产环境必须配置 Supabase 存储。" }, { status: 503 });
-      }
-      const records = await readFallbackRecords();
-      const remainingRecords = records.filter((record) => record.id !== requestedId);
-      if (remainingRecords.length !== records.length) {
-        await writeFallbackRecords(remainingRecords);
-      }
-      return NextResponse.json({ deleted: true, deletedCount: records.length - remainingRecords.length, id: requestedId });
-    }
-
-    const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
-      auth: { persistSession: false }
-    });
-    const uuid = normalizeUuid(requestedId);
-    let targetIds = uuid ? [uuid] : [];
-    if (!uuid) {
-      const { data: legacyRecords, error: legacyReadError } = await supabase
-        .from("family_records")
-        .select("id")
-        .eq("family_id", context.familyId)
-        .eq("metadata->>recordId", requestedId);
-      if (legacyReadError) {
-        return NextResponse.json({ detail: legacyReadError.message }, { status: 500 });
-      }
-      targetIds = (legacyRecords || []).map((record) => record.id);
-    }
-    if (!targetIds.length) {
-      // Deletion is idempotent. Old local-only resources have no Supabase row,
-      // but the client must still be allowed to remove them permanently.
-      return NextResponse.json({ deleted: true, deletedCount: 0, id: requestedId });
-    }
-    const { data, error } = await supabase
-      .from("family_records")
-      .delete()
-      .eq("family_id", context.familyId)
-      .in("id", targetIds)
-      .select("id");
-    if (error) {
-      return NextResponse.json({ detail: error.message }, { status: 500 });
-    }
-    return NextResponse.json({ deleted: true, deletedCount: data?.length || 0, id: requestedId });
+    const store = createFamilyRecordStore();
+    const deletedCount = await store.delete(context.familyId, id);
+    return NextResponse.json({ backend: store.backend, deleted: true, deletedCount, id });
   } catch (error) {
-    if (error instanceof FamilyRequestContextError) {
-      return NextResponse.json({ detail: error.message }, { status: error.status });
-    }
-    return NextResponse.json({ detail: error instanceof Error ? error.message : "记录删除失败。" }, { status: 500 });
+    return errorResponse(error, "记录删除失败。");
   }
 }
 
-function requestContextErrorResponse(error: unknown) {
-  if (error instanceof FamilyRequestContextError) {
+function errorResponse(error: unknown, fallback: string) {
+  if (error instanceof FamilyRequestContextError || error instanceof FamilyRecordStoreError) {
     return NextResponse.json({ detail: error.message }, { status: error.status });
   }
-  return NextResponse.json({ detail: "家庭访问验证失败。" }, { status: 500 });
-}
-
-function isProductionRuntime() {
-  return process.env.NODE_ENV === "production";
-}
-
-function canUseFileFallback() {
-  return !isProductionRuntime() || process.env.FAMILY_APP_ALLOW_FILE_FALLBACK === "true";
+  return NextResponse.json({ detail: error instanceof Error ? error.message : fallback }, { status: 500 });
 }
 
 type RecordPayload = {
-  id: string;
-  family_id: string;
-  member_id: string;
-  space_id: string;
-  created_by_member_id: string;
-  assignee_member_ids: string[];
-  audience: FamilyRecordAudience;
-  assignment_status: AssignmentStatus;
-  assignment_reason: string;
-  kind: FamilyRecordKind;
-  title: string;
-  summary: string;
-  owner_name: string;
-  updated_at: string;
   asset_type: FamilyRecord["assetType"];
+  assignee_member_ids: string[];
+  assignment_reason: string;
+  assignment_status: AssignmentStatus;
+  audience: FamilyRecordAudience;
   audio_path: string;
-  duration_ms: number;
-  file_name: string;
-  preview_url: string;
-  source_files: FamilyRecord["sourceFiles"];
+  chat_members: string[];
+  chat_messages: FamilyRecord["chatMessages"];
   display_time: string;
   due_at: string;
+  duration_ms: number;
+  file_name: string;
+  id: string;
+  invite_link: string;
+  kind: FamilyRecordKind;
   occurred_at: string;
   occurred_on: string;
-  time_zone: string;
-  time_precision: FamilyRecord["timePrecision"];
-  source_time_text: string;
-  reminder_offsets: number[];
+  owner_name: string;
+  owner_member_id: string;
+  preview_url: string;
   recurrence: FamilyRecord["recurrence"];
+  reminder_offsets: number[];
+  source_avatar_seed: string;
+  source_files: FamilyRecord["sourceFiles"];
+  source_member_id: string;
+  source_message_id: string;
+  source_time_text: string;
+  space_id: string;
+  status: FamilyRecordStatus;
+  summary: string;
+  tags: string[];
   task_action_type: FamilyRecord["taskActionType"];
   task_options: string[];
   task_responses: FamilyRecord["taskResponses"];
-  invite_link: string;
-  chat_members: string[];
-  chat_messages: FamilyRecord["chatMessages"];
-  source_avatar_seed: string;
-  source_member_id: string;
-  source_message_id: string;
+  time_precision: FamilyRecord["timePrecision"];
+  time_zone: string;
+  title: string;
   transcript: string;
-  status: FamilyRecordStatus;
-  tags: string[];
+  updated_at: string;
 };
 
 type NormalizedRecordFields = {
   assignmentStatus: AssignmentStatus;
   audience: FamilyRecordAudience;
+  createdByMemberId: string;
   kind: FamilyRecordKind;
   status: FamilyRecordStatus;
   title: string;
 };
 
-type FallbackRecordRow = {
-  record: FamilyRecord;
-  savedAt: string;
-};
-
-function readString(value: unknown) {
-  return typeof value === "string" && value.trim() ? value.trim() : "";
-}
-
-function normalizeUuid(value: unknown) {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) ? value : "";
-}
-
-function buildFallbackRecord(body: Partial<RecordPayload>, fields: NormalizedRecordFields): FamilyRecord {
+function buildFamilyRecord(body: Partial<RecordPayload>, fields: NormalizedRecordFields): FamilyRecord {
   return {
-    id: readString(body.id) || `record-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: readString(body.id) || randomUUID(),
     kind: fields.kind,
     title: fields.title.slice(0, 80),
     summary: readString(body.summary),
     ownerName: readString(body.owner_name) || "家人",
-    createdByMemberId: readString(body.created_by_member_id) || undefined,
-    assigneeMemberIds: Array.isArray(body.assignee_member_ids) ? body.assignee_member_ids.filter((id): id is string => typeof id === "string") : [],
+    ownerMemberId: readString(body.owner_member_id) || undefined,
+    createdByMemberId: fields.createdByMemberId,
+    spaceId: readString(body.space_id) || undefined,
+    assigneeMemberIds: readStringArray(body.assignee_member_ids),
     audience: fields.audience,
     assignmentStatus: fields.assignmentStatus,
     assignmentReason: readString(body.assignment_reason) || undefined,
@@ -464,10 +195,10 @@ function buildFallbackRecord(body: Partial<RecordPayload>, fields: NormalizedRec
     reminderOffsets: readReminderOffsets(body.reminder_offsets),
     recurrence: readTaskRecurrence(body.recurrence),
     taskActionType: body.task_action_type,
-    taskOptions: Array.isArray(body.task_options) ? body.task_options.filter((item): item is string => typeof item === "string") : undefined,
+    taskOptions: readStringArray(body.task_options),
     taskResponses: Array.isArray(body.task_responses) ? body.task_responses : undefined,
     inviteLink: readString(body.invite_link) || undefined,
-    chatMembers: Array.isArray(body.chat_members) ? body.chat_members.filter((item): item is string => typeof item === "string") : undefined,
+    chatMembers: readStringArray(body.chat_members),
     chatMessages: Array.isArray(body.chat_messages) ? body.chat_messages : undefined,
     assetType: body.asset_type,
     audioPath: readString(body.audio_path) || undefined,
@@ -481,130 +212,32 @@ function buildFallbackRecord(body: Partial<RecordPayload>, fields: NormalizedRec
     transcript: readString(body.transcript) || undefined,
     status: fields.status,
     updatedAt: readString(body.updated_at) || "刚刚",
-    tags: Array.isArray(body.tags) ? body.tags.filter((tag): tag is string => typeof tag === "string") : []
+    tags: readStringArray(body.tags)
   };
 }
 
-function buildRecordMetadata(body: Partial<RecordPayload>) {
-  return {
-    recordId: readString(body.id) || undefined,
-    ownerName: readString(body.owner_name) || undefined,
-    updatedAt: readString(body.updated_at) || undefined,
-    displayTime: readString(body.display_time) || undefined,
-    dueAt: readString(body.due_at) || undefined,
-    occurredAt: readString(body.occurred_at) || undefined,
-    occurredOn: readString(body.occurred_on) || undefined,
-    timeZone: readString(body.time_zone) || undefined,
-    timePrecision: readTimePrecision(body.time_precision),
-    sourceTimeText: readString(body.source_time_text) || undefined,
-    reminderOffsets: readReminderOffsets(body.reminder_offsets),
-    recurrence: readTaskRecurrence(body.recurrence),
-    taskActionType: body.task_action_type,
-    taskOptions: Array.isArray(body.task_options) ? body.task_options.filter((item): item is string => typeof item === "string") : undefined,
-    taskResponses: Array.isArray(body.task_responses) ? body.task_responses : undefined,
-    inviteLink: readString(body.invite_link) || undefined,
-    chatMembers: Array.isArray(body.chat_members) ? body.chat_members.filter((item): item is string => typeof item === "string") : undefined,
-    chatMessages: Array.isArray(body.chat_messages) ? body.chat_messages : undefined,
-    assetType: body.asset_type,
-    audioPath: readString(body.audio_path) || undefined,
-    durationMs: readDurationMs(body.duration_ms),
-    fileName: readString(body.file_name) || undefined,
-    previewUrl: readString(body.preview_url) || undefined,
-    sourceAvatarSeed: readString(body.source_avatar_seed) || undefined,
-    sourceFiles: Array.isArray(body.source_files) ? body.source_files : undefined,
-    sourceMemberId: readString(body.source_member_id) || undefined,
-    sourceMessageId: readString(body.source_message_id) || undefined,
-    transcript: readString(body.transcript) || undefined
-  } satisfies Partial<FamilyRecord> & { recordId?: string };
+function readString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
 }
 
-function readRecordMetadata(value: unknown): Partial<FamilyRecord> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  const metadata = value as Partial<FamilyRecord> & {
-    asset_type?: unknown;
-    audio_path?: unknown;
-    duration_ms?: unknown;
-    transcript?: unknown;
-  };
-  const legacyAssetType = metadata.asset_type === "voice" ? "audio" : metadata.asset_type;
-  return {
-    ...metadata,
-    assetType: metadata.assetType || (typeof legacyAssetType === "string" ? legacyAssetType as FamilyRecord["assetType"] : undefined),
-    audioPath: metadata.audioPath || readString(metadata.audio_path) || undefined,
-    durationMs: metadata.durationMs || readDurationMs(metadata.duration_ms),
-    transcript: metadata.transcript ? readString(metadata.transcript) : undefined
-  };
+function matchesLegacyUploadedFile(
+  existing: NonNullable<FamilyRecord["sourceFiles"]>[number],
+  incomingFiles: NonNullable<FamilyRecord["sourceFiles"]>
+) {
+  if (readString(existing.contentHash)) return false;
+  return incomingFiles.some((incoming) =>
+    Boolean(readString(incoming.contentHash)) &&
+    existing.name === incoming.name &&
+    typeof existing.size === "number" &&
+    existing.size === incoming.size &&
+    readString(existing.type) === readString(incoming.type)
+  );
 }
 
-function formatRecordUpdatedAt(value: string | null) {
-  if (!value) {
-    return "刚刚";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "已保存";
-  }
-
-  return date.toLocaleTimeString("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  });
-}
-
-function toJson(value: unknown): Json {
-  return JSON.parse(JSON.stringify(value ?? {})) as Json;
-}
-
-async function appendFallbackRecord(record: FamilyRecord) {
-  await mkdir(fallbackDbDir, { recursive: true });
-  const row: FallbackRecordRow = {
-    record,
-    savedAt: new Date().toISOString()
-  };
-  await appendFile(fallbackRecordsPath, `${JSON.stringify(row)}\n`, "utf8");
-}
-
-async function writeFallbackRecords(records: FamilyRecord[]) {
-  await mkdir(fallbackDbDir, { recursive: true });
-  const savedAt = new Date().toISOString();
-  const content = records
-    .map((record) => JSON.stringify({ record, savedAt } satisfies FallbackRecordRow))
-    .join("\n");
-  await writeFile(fallbackRecordsPath, content ? `${content}\n` : "", "utf8");
-}
-
-async function readFallbackRecords() {
-  let content = "";
-  try {
-    content = await readFile(fallbackRecordsPath, "utf8");
-  } catch {
-    return [];
-  }
-
-  const byId = new Map<string, FallbackRecordRow>();
-  for (const line of content.split(/\n+/)) {
-    if (!line.trim()) {
-      continue;
-    }
-    try {
-      const row = JSON.parse(line) as FallbackRecordRow;
-      if (row.record?.id) {
-        byId.set(row.record.id, row);
-      }
-    } catch {
-      // Ignore a malformed dev row and keep the public app readable.
-    }
-  }
-
-  return [...byId.values()]
-    .sort((left, right) => right.savedAt.localeCompare(left.savedAt))
-    .slice(0, 200)
-    .map((row) => ({ ...row.record, occurredAt: row.record.occurredAt || row.savedAt }));
+function readStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()))]
+    : [];
 }
 
 function readReminderOffsets(value: unknown) {

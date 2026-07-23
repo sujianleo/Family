@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { recommendAiTuningProfile, readAiTuningProfile, writeAiTuningProfile } from "@/lib/server/aiTuning";
 import { requireFamilyRequestContext } from "@/lib/server/familyRequestContext";
 import { getFastModelName, invokeDeepSeekJson } from "@/lib/server/langchainAi";
+import { isLiteBackend } from "@/lib/server/familyBackend";
+import { saveLiteAiConfig } from "@/lib/server/liteAiConfig";
 
 export const runtime = "nodejs";
 
@@ -85,6 +87,14 @@ export async function POST(request: Request) {
       totalVectors: testVectors.length
     });
     await writeAiTuningProfile(profile);
+    if (isLiteBackend() && apiKey) {
+      saveLiteAiConfig({
+        apiKey,
+        deepModel: "deepseek-v4-pro",
+        endpoint,
+        fastModel: model
+      });
+    }
     return NextResponse.json({ ok: true, profile, results });
   } catch (error) {
     return NextResponse.json({ detail: readError(error, "AI 调参失败。"), ok: false }, { status: 400 });

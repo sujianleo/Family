@@ -128,7 +128,7 @@ function readScope(value: unknown): SummaryScope {
 }
 
 function readSummaryType(value: unknown): SummaryType {
-  return value === "weekly" || value === "monthly" || value === "custom" ? value : "daily";
+  return value === "weekly" || value === "monthly" || value === "yearly" || value === "custom" ? value : "daily";
 }
 
 function resolveSummaryActionId(scope: SummaryScope, summaryType: SummaryType) {
@@ -137,6 +137,9 @@ function resolveSummaryActionId(scope: SummaryScope, summaryType: SummaryType) {
   }
   if (summaryType === "monthly") {
     return "summary.family.monthly";
+  }
+  if (summaryType === "yearly") {
+    return "summary.family.yearly";
   }
   return summaryType === "weekly" ? "summary.family.weekly" : "summary.family.daily";
 }

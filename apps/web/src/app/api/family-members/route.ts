@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { applyLocalRelationshipPerspective, resolveRelationshipPerspective, type RelationshipEdge } from "@/lib/relationshipPerspective";
 import { FamilyRequestContextError, requireFamilyRequestContext } from "@/lib/server/familyRequestContext";
 import { createRawEvent } from "@/lib/server/eventStore";
+import { isLiteBackend } from "@/lib/server/familyBackend";
+import { deleteLiteMember, readLiteFamilyMembers, updateLiteMemberProfile } from "@/lib/server/liteRepository";
 import { readFamilyMembersWithOverrides, removeFamilyMember, updateFamilyMemberProfile } from "@/lib/server/memberOverrides";
 import { isLocalAuthConfigured, readLocalSession } from "@/lib/server/localAuth";
 import { createServiceSupabaseClient } from "@/lib/server/supabaseServer";
@@ -12,6 +14,15 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const context = await requireFamilyRequestContext(request);
+    if (isLiteBackend()) {
+      const members = readLiteFamilyMembers();
+      const currentMember = members.find((member) => member.id === context.memberId);
+      return NextResponse.json({
+        backend: "sqlite",
+        members: applyLocalRelationshipPerspective(members, context.memberId),
+        session: { memberId: context.memberId, role: readLocalSession(request)?.role || sessionRole(currentMember?.role) }
+      });
+    }
     const service = createServiceSupabaseClient() as any;
     if (!service || !isUuid(context.familyId)) {
       const members = await readFamilyMembersWithOverrides("data");
@@ -88,6 +99,11 @@ export async function PATCH(request: Request) {
           updatedAt: now.toISOString()
         }
       : undefined;
+    if (isLiteBackend()) {
+      const member = updateLiteMemberProfile({ avatarSeed, displayName, familyId: context.familyId, memberId: targetMemberId, profile });
+      if (!member) return NextResponse.json({ detail: "成员资料不存在。" }, { status: 404 });
+      return NextResponse.json({ member });
+    }
     if (!service || !isUuid(context.familyId)) {
       const member = await updateFamilyMemberProfile("data", targetMemberId, { avatarSeed, displayName, profile });
       return NextResponse.json({ member: { ...member, profile } });
@@ -122,6 +138,14 @@ export async function DELETE(request: Request) {
     if (!memberId) return NextResponse.json({ detail: "请选择要移除的成员。" }, { status: 400 });
     if (memberId === context.memberId) return NextResponse.json({ detail: "不能移除当前登录成员。" }, { status: 400 });
     if (memberId === "fanmili") return NextResponse.json({ detail: "家庭助手不是可移除成员。" }, { status: 400 });
+
+    if (isLiteBackend()) {
+      const session = readLocalSession(request);
+      if (session?.role !== "admin") return NextResponse.json({ detail: "仅家庭管理员可以移除成员。" }, { status: 403 });
+      const removed = deleteLiteMember(context.familyId, memberId);
+      if (!removed) return NextResponse.json({ detail: "成员不存在或不能移除。" }, { status: 404 });
+      return NextResponse.json({ memberId, ok: true });
+    }
 
     if (isLocalAuthConfigured()) {
       const session = readLocalSession(request);

@@ -17,15 +17,28 @@ export function FamilyAccessGate({ children, initialSignedIn }: { children: Reac
   const [familyName, setFamilyName] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [signedIn, setSignedIn] = useState(initialSignedIn && isLocalFamilyAuth());
-  const [setupRequired, setSetupRequired] = useState<boolean | null>(isLocalFamilyAuth() ? false : null);
+  const [signedIn, setSignedIn] = useState(isLocalFamilyAuth() ? initialSignedIn : false);
+  const [setupRequired, setSetupRequired] = useState<boolean | null>(null);
 
   useEffect(() => {
     const rememberedAccount = window.localStorage.getItem(rememberedAccountKey);
     if (rememberedAccount) {
       setPhone(rememberedAccount);
     }
-    if (!isLocalFamilyAuth() && supabase) {
+    if (isLocalFamilyAuth()) {
+      void Promise.all([
+        fetch("/api/auth/session", { cache: "no-store" }).then((response) => response.ok).catch(() => false),
+        fetch("/api/setup/status", { cache: "no-store" }).then(async (response) => ({ ok: response.ok, payload: await response.json().catch(() => ({})) as { detail?: string; setupRequired?: boolean } })).catch(() => null)
+      ]).then(([hasSession, statusResult]) => {
+        setSignedIn(hasSession);
+        if (!statusResult?.ok) {
+          setMessage(statusResult?.payload.detail || "暂时无法读取本地家庭数据。");
+          setSetupRequired(false);
+          return;
+        }
+        setSetupRequired(Boolean(statusResult.payload.setupRequired));
+      });
+    } else if (supabase) {
       void Promise.all([
         supabase.auth.getSession(),
         fetch("/api/setup/status", { cache: "no-store" }).then(async (response) => ({ ok: response.ok, payload: await response.json().catch(() => ({})) as { detail?: string; setupRequired?: boolean } })).catch(() => null)
@@ -44,7 +57,7 @@ export function FamilyAccessGate({ children, initialSignedIn }: { children: Reac
         }
         setSetupRequired(Boolean(statusResult.payload.setupRequired));
       });
-    } else if (!isLocalFamilyAuth()) {
+    } else {
       setMessage("家庭账号服务尚未配置。");
       setSetupRequired(false);
     }
@@ -116,7 +129,11 @@ export function FamilyAccessGate({ children, initialSignedIn }: { children: Reac
       setMessage(payload.detail || "创建家庭失败，请重试。");
       return;
     }
-    const signInResult = supabase ? await supabase.auth.signInWithPassword({ phone: normalizedPhone, password }) : null;
+    const signInResult = isLocalFamilyAuth()
+      ? await fetch("/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ phone: normalizedPhone, password }) }).then((response) => ({ error: response.ok ? null : new Error("local sign-in failed") })).catch(() => null)
+      : supabase
+        ? await supabase.auth.signInWithPassword({ phone: normalizedPhone, password })
+        : null;
     setSubmitting(false);
     if (!signInResult || signInResult.error) {
       setSetupRequired(false);

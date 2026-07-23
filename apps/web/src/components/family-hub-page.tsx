@@ -14,6 +14,7 @@ type FamilyHubPageProps = {
   demoDataEnabled: boolean;
   demoRecordIds: string[];
   familyMembers: FamilyMember[];
+  familyName: string;
   familyRecords: FamilyRecord[];
   initialMemberId: string;
   initialSignedIn: boolean;
@@ -24,6 +25,7 @@ export function FamilyHubPage({
   demoDataEnabled,
   demoRecordIds,
   familyMembers,
+  familyName,
   familyRecords,
   initialMemberId,
   initialSignedIn,
@@ -41,6 +43,7 @@ export function FamilyHubPage({
                 demoDataEnabled={demoDataEnabled}
                 demoRecordIds={demoRecordIds}
                 initialMemberId={initialMemberId}
+                familyName={familyName}
                 members={familyMembers}
                 navItems={navItems}
                 records={familyRecords}

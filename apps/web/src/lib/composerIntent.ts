@@ -31,8 +31,8 @@ export type ComposerIntent =
       sourceText: string;
     };
 
-const groupCreatePattern = /(创建|新建|建|开|拉)(一个)?(临时)?(群组|群聊|群)/;
-const slashGroupPattern = /^(建群|建一个群|新建群|创建群|群聊|群组|group)\b/i;
+const groupCreatePattern = /(创建|新建|建|开|拉(?:上)?)(?:一?个)?(临时)?(群组|群聊|群)/;
+const slashGroupPattern = /^(建群|建(?:一?个)?群|新建群|创建(?:一?个)?群|群聊|群组|group)\b/i;
 const titlePatterns = [
   /(?:群聊|群组|群)?(?:的)?(?:名称|名字|群名)\s*(?:就是|是|叫|为|设为|取名为|取名叫)\s*["“]?([^"，,。.！!？?\n]+)["”]?/,
   /(?:叫做|叫|取名为|取名叫|命名为)\s*["“]?([^"，,。.！!？?\n]+)["”]?/

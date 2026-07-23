@@ -100,6 +100,7 @@ export type BackgroundOrganizationJson = {
     personalPending: BackgroundTaskState[];
   };
   timeline: Array<{
+    actorMemberId?: string;
     actorName?: string;
     createdAt: string;
     sourceId: string;
@@ -319,7 +320,8 @@ export function buildBackgroundOrganization(input: {
     .slice()
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
     .slice(-10)
-    .map(({ actorName, createdAt, sourceId, sourceType, text }) => ({
+    .map(({ actorMemberId, actorName, createdAt, sourceId, sourceType, text }) => ({
+      actorMemberId,
       actorName,
       createdAt,
       sourceId,

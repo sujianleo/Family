@@ -40,6 +40,7 @@ export default function InvitePage({ params }: { params: Promise<{ inviteId: str
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [destination, setDestination] = useState("");
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     const embeddedCode = new URLSearchParams(window.location.search).get("code")?.replace(/\D/g, "").slice(0, 4) || "";
@@ -49,6 +50,7 @@ export default function InvitePage({ params }: { params: Promise<{ inviteId: str
         const payload = await response.json().catch(() => ({})) as { detail?: string; invite?: InvitePreview };
         if (!response.ok || !payload.invite) throw new Error(payload.detail || "邀请不存在。");
         setInvite(payload.invite);
+        if (payload.invite.verified) setDisplayName(payload.invite.targetName || "");
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "邀请不存在。"));
     void refreshSession();
@@ -97,6 +99,27 @@ export default function InvitePage({ params }: { params: Promise<{ inviteId: str
     if (!normalized) return setMessage("请输入正确的手机号。");
     if (password.length < 8) return setMessage("密码至少需要 8 位。");
     if (password !== passwordRepeat) return setMessage("两次输入的密码不一致。");
+    if (isLocalFamilyAuth()) {
+      setBusy(true);
+      setMessage("");
+      const response = await familyFetch(`/api/invites/${encodeURIComponent(inviteId)}/accept`, {
+        body: JSON.stringify({
+          avatar_seed: avatarSeed,
+          code,
+          display_name: displayName.trim(),
+          password,
+          phone: normalized
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      }).catch(() => null);
+      setBusy(false);
+      const payload = response ? await response.json().catch(() => ({})) as { detail?: string } : {};
+      if (!response?.ok) return setMessage(payload.detail || "加入申请提交失败，请稍后重试。");
+      setSubmitted(true);
+      setMessage("加入申请已发送给家庭管理员。确认后，你就可以用这个手机号和密码登录。");
+      return;
+    }
     if (!supabase) return setMessage("家庭注册服务尚未配置。");
     setBusy(true);
     setMessage("");
@@ -181,17 +204,19 @@ export default function InvitePage({ params }: { params: Promise<{ inviteId: str
               <dt>有效期</dt><dd>{formatExpiry(invite.expiresAt)}</dd>
             </dl>
 
-            {!signedIn ? (
+            {submitted ? (
+              <div className={styles.notice}>申请已提交，请等待家庭管理员确认。</div>
+            ) : !signedIn ? (
               <div className={styles.signIn}>
                 <h2>{invite.type === "family" ? "创建你的家庭账号" : "先确认是你"}</h2>
-                <p className={styles.muted}>{invite.type === "family" ? "手机号和密码会成为你今后的登录凭证。注册后仍需家庭管理员确认。" : "登录用于在换设备后找回群聊身份。邀请链接不会替你登录。"}</p>
+                <p className={styles.muted}>{invite.type === "family" ? (isLocalFamilyAuth() ? "手机号和密码会加密保存在这台 Family Lite 中。管理员确认后才能登录。" : "手机号和密码会成为你今后的登录凭证。注册后仍需家庭管理员确认。") : "登录用于在换设备后找回群聊身份。邀请链接不会替你登录。"}</p>
                 {invite.type === "family" ? (
                   <>
                     <input aria-label="手机号" autoComplete="tel" inputMode="tel" onChange={(event) => setPhone(event.target.value)} placeholder="手机号" value={phone} />
                     <input aria-label="设置密码" autoComplete="new-password" minLength={8} onChange={(event) => setPassword(event.target.value)} placeholder="设置密码（至少 8 位）" type="password" value={password} />
                     <input aria-label="确认密码" autoComplete="new-password" minLength={8} onChange={(event) => setPasswordRepeat(event.target.value)} placeholder="再次输入密码" type="password" value={passwordRepeat} />
-                    <button className={styles.primary} disabled={busy} onClick={() => void registerFamilyAccount()} type="button">{busy ? "正在注册…" : "注册并验证手机号"}</button>
-                    {otpSent ? <div className={styles.phoneRow}><input aria-label="短信验证码" inputMode="numeric" maxLength={6} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} placeholder="6 位验证码" value={otp} /><button disabled={busy} onClick={() => void confirmOtp()} type="button">验证</button></div> : null}
+                    <button className={styles.primary} disabled={busy} onClick={() => void registerFamilyAccount()} type="button">{busy ? "正在提交…" : isLocalFamilyAuth() ? "提交注册申请" : "注册并验证手机号"}</button>
+                    {!isLocalFamilyAuth() && otpSent ? <div className={styles.phoneRow}><input aria-label="短信验证码" inputMode="numeric" maxLength={6} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} placeholder="6 位验证码" value={otp} /><button disabled={busy} onClick={() => void confirmOtp()} type="button">验证</button></div> : null}
                   </>
                 ) : (
                   <>

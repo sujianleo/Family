@@ -1,7 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { createServiceSupabaseClient } from "./supabaseServer";
+import { isLiteBackend } from "./familyBackend";
+import { listLiteFamilyRecords } from "./liteRepository";
 
-export type SummaryType = "daily" | "weekly" | "monthly" | "custom";
+export type SummaryType = "daily" | "weekly" | "monthly" | "yearly" | "custom";
 export type SummaryScope = "personal" | "family";
 
 export type SummarySourceInput = {
@@ -58,6 +60,7 @@ export async function buildSummarySource(input: SummarySourceInput): Promise<Sum
   const localJudgements = await readJsonArray(`${dataDir}/group-judgements.json`);
   const profileItems = await readMemberProfileItems(dataDir, input);
   const supabaseItems = await readSupabaseCompactItems(input);
+  const liteItems = readLiteCompactItems(input);
 
   const rawEventItems = rawEvents
     .filter((event) => isEligibleRow(event, input))
@@ -86,6 +89,7 @@ export async function buildSummarySource(input: SummarySourceInput): Promise<Sum
   const dedupedItems = selectBalancedRecentItems(
     dedupeItems([
       ...supabaseItems,
+      ...liteItems,
       ...rawEventItems,
       ...metaItems,
       ...summaryItems,
@@ -112,6 +116,26 @@ export async function buildSummarySource(input: SummarySourceInput): Promise<Sum
     },
     summaryType: input.summaryType
   };
+}
+
+function readLiteCompactItems(input: SummarySourceInput): CompactSummaryItem[] {
+  if (!isLiteBackend()) return [];
+  return listLiteFamilyRecords(input.familyId, input.maxItems || defaultMaxItems)
+    .map((record) => ({
+      ...record,
+      created_at: record.occurredAt,
+      created_by_member_id: record.createdByMemberId,
+      family_id: input.familyId,
+      metadata: {
+        assigneeMemberIds: record.assigneeMemberIds || [],
+        audience: record.audience,
+        dueAt: record.dueAt,
+        status: record.status
+      }
+    }))
+    .filter((row) => isEligibleRecord(row, input))
+    .map((row) => compactFamilyRecord(row))
+    .filter((item): item is CompactSummaryItem => Boolean(item));
 }
 
 async function readSupabaseCompactItems(input: SummarySourceInput): Promise<CompactSummaryItem[]> {

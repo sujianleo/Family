@@ -1,138 +1,117 @@
-<h3 align="center">
-  <img src="./apps/web/public/family-logo-v2.png" alt="Family" width="120" />
-</h3>
-
 <p align="center">
-  <img alt="Self-hosted" src="https://img.shields.io/badge/SELF--HOSTED-2F6F68?style=flat-square" />
-  <img alt="AI optional" src="https://img.shields.io/badge/AI-OPTIONAL-1E514C?style=flat-square" />
-  <img alt="PWA" src="https://img.shields.io/badge/PWA-6C717C?style=flat-square" />
-  <img alt="License: MIT" src="https://img.shields.io/badge/LICENSE-MIT-9584C5?style=flat-square" />
-  <br />
-  <img alt="Next.js" src="https://img.shields.io/badge/NEXT.JS-20302A?style=flat-square&logo=nextdotjs&logoColor=white" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/TYPESCRIPT-2F6F68?style=flat-square&logo=typescript&logoColor=white" />
-  <img alt="Supabase" src="https://img.shields.io/badge/SUPABASE-4A8F7B?style=flat-square&logo=supabase&logoColor=white" />
-  <img alt="LangChain" src="https://img.shields.io/badge/LANGCHAIN-9584C5?style=flat-square&logo=langchain&logoColor=white" />
+  <img src="./apps/web/public/family-logo-v2.png" alt="Family" width="118" />
 </p>
 
----
+<h1 align="center">我爱饭米粒 · Family</h1>
 
-<h1 align="center">我爱饭米粒</h1>
+<p align="center">
+  一个安装在自己设备上的家庭空间。<br />
+  把待办、群聊、健康资料与家庭 AI 放在一起，用心记录，安心陪伴。
+</p>
 
-**用心记录，守护家庭。** Record with care, protect your family, and keep household tasks, health documents, and family coordination safely organized over time.
+<p align="center">
+  <img alt="Family Lite" src="https://img.shields.io/badge/FAMILY-LITE-2F6F68?style=flat-square" />
+  <img alt="One container" src="https://img.shields.io/badge/ONE-CONTAINER-1E514C?style=flat-square" />
+  <img alt="SQLite" src="https://img.shields.io/badge/SQLITE-LOCAL-6C717C?style=flat-square&logo=sqlite&logoColor=white" />
+  <img alt="PWA" src="https://img.shields.io/badge/PWA-NO_DOWNLOAD-9584C5?style=flat-square" />
+  <img alt="MIT License" src="https://img.shields.io/badge/LICENSE-MIT-D08A3C?style=flat-square" />
+</p>
 
-A family rarely needs another group chat. It needs a place that remembers what matters, helps someone take responsibility, and follows through.
+<p align="center">
+  <img src="./.github/assets/showcase/family-lite-home.webp" alt="Family 家庭主页" width="100%" />
+</p>
 
----
+## 为什么做 Family
 
-## What can it do for your family?
+家庭真正缺少的通常不是另一个聊天群，而是一个能把事情留下来的地方：
 
-- **Health records:** Keep reports and follow-up plans together, ready when you need them.
-- **Family coordination:** Assign tasks and reminders without digging through endless chat history.
-- **Notifications that close the loop:** Receive task reminders in supported browsers and clear related notices when the work is finished.
-- **Mobile-first routines:** Complete or restore tasks with deliberate swipe actions and manage several family files without losing your place.
-- **Long-term memory:** Capture something today and still find it tomorrow—or years from now.
-- **People stay in charge:** AI can organize and suggest; the family always makes the decision.
+- 谁需要复查、谁负责缴费、孩子周末有什么安排，不再埋进聊天记录。
+- 体检报告、照片和生活资料按家庭成员归属，几年后仍能找回来。
+- AI 可以听懂、整理和建议，但创建任务、保存记忆等重要动作仍由家人确认。
+- 数据放在自己的电脑或 NAS；手机、平板和电脑打开同一个网址即可使用。
 
-## How does a household task get handled properly?
+## 一行启动
 
-1. **Capture it:** Add a task, voice note, or file whenever it comes to mind.
-
-2. **Put it in order:** Time, people, and context fall naturally into the family timeline.
-
-3. **Find what matters:** AI retrieves, summarizes, and highlights without making decisions for you.
-
-4. **Confirm first:** Important actions are shown to the family before anything happens.
-
-5. **Follow through:** Reminders, tasks, and feedback remain part of the record after the work is done.
-
-## Made for everyday family use
-
-- **Write naturally:** Mention a family member anywhere in a sentence to prepare an assignment. Mentions at the beginning can still start a group conversation.
-- **See the whole time at a glance:** Task rows keep the date, weekday, and time aligned without turning the home screen into a spreadsheet.
-- **Move with confidence:** Complete and restore gestures settle predictably, even while the family timeline is synchronizing.
-- **Stay informed without duplicates:** The app coordinates foreground reminders and Web Push so the same task is not announced twice.
-- **Keep documents manageable:** Images and files stay stable while selecting, downloading, or removing several resources.
-
-Family treats AI output as a candidate, not an action. A suggestion can become a task, plan, or memory only after a person confirms it.
-
-## Quick Start
-
-### Docker Compose: full household deployment
-
-Install Docker Compose 2.20+, Git, and OpenSSL. From the project directory, run this once:
+安装 Docker 后运行：
 
 ```bash
-./start.sh
+docker run -d --name family --restart unless-stopped -p 3000:3000 -v family-data:/app/data ghcr.io/sujianleo/family:latest
 ```
 
-This single command handles the setup:
+打开 `http://设备IP:3000`，创建第一个家庭管理员即可。镜像首次启动会自动准备 SQLite、文件目录和本地安全密钥，不需要 clone 仓库、配置数据库或填写环境变量。
 
-- **Find the address:** Detect the NAS IP and create a local-network URL.
-- **Prepare secrets:** Generate independent application and Web Push (VAPID) keys, then write the connection settings.
-- **Install services:** Download the required components and prepare data and file storage.
-- **Start Family:** Build the app, launch the containers, and create the database tables.
+<p align="center">
+  <img src="./.github/assets/showcase/simple-onboarding.webp" alt="Family 首次创建家庭" width="100%" />
+</p>
 
-> On the first run, do not jump straight to `docker compose up`. `./start.sh` generates the Supabase configuration before handing control to Compose.
+SQLite 数据库、上传文件和自动生成的安全密钥都保存在 `family-data` 数据卷中。备份这个数据卷，就能一起保存家庭账号、记录与附件。
 
-Family, PostgreSQL, Auth, API, and Storage run in one Compose project. Each has a separate job, but they start and stop together.
+## 给一家人使用，而不是只给一个人
 
-A full self-hosted Supabase installation intentionally appears as several Docker containers: database, authentication, REST, storage, realtime, functions, connection pooling, and supporting services. This is one deployment, not duplicate installations. Manage the Compose project as a unit and do not delete individual containers to make the Docker list shorter.
+每位家人都有自己的本地账号、头像与资料。管理员可以邀请和审核新成员，三代人的任务、群聊和资料仍保持清晰归属。
 
-After the first setup, these three commands cover everyday operation:
+<p align="center">
+  <img src="./.github/assets/showcase/three-generation-family.webp" alt="三代家庭成员" width="100%" />
+</p>
 
-```bash
-docker compose up -d
-docker compose ps
-docker compose stop
-```
+健康、缴费、学习和家庭安排可以分别交给合适的家人。时间、负责人和完成状态保持清晰，已完成事项也可以恢复。
 
-Open the URL printed in the terminal and create the first family administrator. Invite relatives afterward; once the administrator approves them, the family can share tasks, group chats, feedback, and documents.
+<p align="center">
+  <img src="./.github/assets/showcase/personal-tasks-v2.webp" alt="家庭成员个人待办" width="100%" />
+</p>
 
-If the NAS has multiple network interfaces, specify the address explicitly:
+自然语言可以创建待办，也可以在家庭群聊里讨论。小饭大人负责整理时间、重点和下一步，不会冒充家人做决定。
 
-```bash
-FAMILY_APP_HOST=192.168.1.20 ./start.sh
-```
+<p align="center">
+  <img src="./.github/assets/showcase/family-group-chat.webp" alt="家庭群聊与 AI 整理" width="100%" />
+</p>
 
-Networking is designed to stay out of the way:
+## AI 先建议，家人再确认
 
-- **Local access:** Open the link from any device on the same network.
-- **Internet access:** Leave the public address empty and add HTTPS later when needed.
-- **Automatic selection:** Detect available routes and choose the faster one.
-- **Manual control:** Accept the detected default or change it in the app at any time.
+说一句“明天晚上 8 点提醒我陪爷爷测血压”，Family 会先整理时间、负责人和任务内容。只有点击确认后，候选才会成为正式待办。
 
-See [Self-hosted Supabase](docs/self-hosted-supabase.md) for complete configuration and backup instructions.
+<p align="center">
+  <img src="./.github/assets/showcase/ai-confirmation.webp" alt="AI 建议确认后执行" width="100%" />
+</p>
 
-### Just want to take a look?
+上传 PDF、图片或票据后，Family 会把资料保存进家庭资料库，并用轻量解析提炼重点。健康资料会保留来源、归属确认和非诊断边界。
 
-Launch the interface-only demo without Supabase, sign-in, or family membership:
+<p align="center">
+  <img src="./.github/assets/showcase/pdf-resource-ai.webp" alt="PDF 体检报告解析" width="100%" />
+</p>
 
-```bash
-docker compose -f docker-compose.app.yml up --build -d
-```
+AI 不是没有身份的聊天框。你可以给它命名、设定个性；它只从可信的家庭经历中逐步形成更合适的表达方式。
 
-Open [http://localhost:3000](http://localhost:3000). Data is written only to local files. This mode is great for a quick tour, but it should not be exposed directly to the internet.
+<p align="center">
+  <img src="./.github/assets/showcase/ai-personality-growth.webp" alt="AI 个性与成长" width="100%" />
+</p>
 
-## Which AI should you use?
+## 无需下载，也能像 App 一样使用
 
-- **DeepSeek:** Budget-friendly and well suited to everyday organization and questions.
-- **OpenAI:** A broad capability set, currently used mainly for speech transcription.
-- **No AI for now:** Records, tasks, invitations, and synchronization still work normally.
+Family 是移动优先的 PWA。全家可以直接使用浏览器，也可以选择“添加到主屏幕”。同一份数据可以在手机、平板和桌面浏览器之间使用。
 
-AI handles understanding and suggestions. Family handles rules and safety. The final decision always belongs to the people involved.
+<p align="center">
+  <img src="./.github/assets/showcase/multi-device-pwa.webp" alt="手机和桌面多端使用" width="100%" />
+</p>
 
-Open **Settings → AI** to choose DeepSeek, OpenAI, Qwen, Kimi, Zhipu, Hunyuan, Gemini, Claude, or a custom provider. **Test API** sends a real request—no pretend green lights.
+## 设计原则
 
-## Documentation
+- **本地优先：** 不接 AI 也能使用账号、待办、群聊和资料。
+- **确认后执行：** AI 输出默认是候选，不是已经发生的事实。
+- **家庭边界：** 不同家庭、成员和对话彼此隔离。
+- **长期可用：** 数据结构、备份和恢复优先于短期演示效果。
+- **移动优先：** 重点适配手机浏览器、PWA 与触摸交互。
 
-[User Guide](docs/user-guide.md) · [Self-hosted Supabase](docs/self-hosted-supabase.md) · [System Architecture](docs/system-architecture.md) · [Capability Matrix](docs/capability-matrix.md)
+## 技术栈
+
+Next.js · TypeScript · SQLite · LangChain / LangGraph · Docker · PWA
+
+AI 提供理解与建议，Family 负责规则、权限、记录与确认。AI Key 只保存在自己的部署环境中。
 
 ## License
 
-Family is available under the [MIT License](LICENSE).
+[MIT](LICENSE)
 
----
+资源图标来自 [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji)，按 MIT License 使用。
 
-> Feedback is always welcome. Family is still young; let us raise it together.
-
-Family data is deeply private. Never commit real records, secrets, databases, or runtime files.
+> Family 仍在成长。欢迎提交 Issue、分享使用场景，或一起把它做成更适合真实家庭的产品。

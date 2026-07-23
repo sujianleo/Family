@@ -43,6 +43,7 @@ type StoredSettings = {
 };
 
 export function OnboardingGate({ children }: { children: ReactNode }) {
+  const isLite = process.env.NEXT_PUBLIC_FAMILY_APP_BACKEND === "sqlite";
   const [ready, setReady] = useState(false);
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [publicDomain, setPublicDomain] = useState("");
@@ -87,7 +88,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
     setStep("ai");
   }
 
-  function completeOnboarding() {
+  async function completeOnboarding() {
     const publicTarget = parsePublicTarget(publicDomain);
     const normalizedLan = normalizeLanAddress(lanAddress);
     let storedSettings: StoredSettings = {};
@@ -98,6 +99,17 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
     }
 
     const providers = upsertAiProvider(storedSettings.providers, providerKind, apiKey.trim());
+    if (isLite && providerKind === "deepseek" && apiKey.trim()) {
+      await fetch("/api/ai-config", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          apiKey: apiKey.trim(),
+          deepModel: "deepseek-v4-pro",
+          fastModel: "deepseek-v4-flash"
+        })
+      }).catch(() => null);
+    }
     window.localStorage.setItem(settingsStorageKey, JSON.stringify({
       ...storedSettings,
       activeNetwork: publicTarget.host ? "internet" : normalizedLan ? "local" : null,
@@ -123,7 +135,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
       <section aria-label="新用户引导" className={styles.card}>
         {step === "welcome" ? (
           <div className={styles.welcome}>
-            <Brand className={styles.welcomeBrand} />
+            <Brand className={styles.welcomeBrand} isLite={isLite} />
             <div aria-label="选择配色" className={styles.themeChoice} role="group">
               <button
                 aria-pressed={themeFamily === "mono"}
@@ -181,7 +193,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
             <label className={styles.field}>
               <span>{onboardingProviderPresets.find((provider) => provider.kind === providerKind)?.label} API Key <em>可选</em></span>
               <input autoComplete="off" onChange={(event) => setApiKey(event.target.value)} placeholder="sk-••••••••" type="password" value={apiKey} />
-              <small>仅保存在当前浏览器。</small>
+              <small>{isLite ? "加密保存在这台设备的 Family Lite 数据库中。" : "仅保存在当前浏览器。"}</small>
             </label>
             <div className={styles.actions}>
               <button className={styles.secondary} onClick={() => setStep("network")} type="button">返回</button>
@@ -199,7 +211,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
             </div>
             <div className={styles.actions}>
               <button className={styles.secondary} onClick={() => setStep("ai")} type="button">返回</button>
-              <button className={styles.primary} onClick={completeOnboarding} type="button">进入家庭空间</button>
+              <button className={styles.primary} onClick={() => void completeOnboarding()} type="button">进入家庭空间</button>
             </div>
           </div>
         ) : null}
@@ -213,12 +225,12 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   }
 }
 
-function Brand({ className = "" }: { className?: string }) {
+function Brand({ className = "", isLite = false }: { className?: string; isLite?: boolean }) {
   return (
     <header className={`${styles.brand} ${className}`.trim()}>
       <Image alt="我爱饭米粒" className={styles.logo} height={72} priority src="/family-logo-v2.png" width={72} />
       <div>
-        <small>用心记录 · 守护家庭</small>
+        <small>{isLite ? "Family Lite · 数据保存在本机" : "用心记录 · 守护家庭"}</small>
       </div>
     </header>
   );

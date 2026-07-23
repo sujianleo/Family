@@ -6,7 +6,7 @@ export type ComposerMentionEdit = {
 export function insertComposerMention(value: string, displayName: string, cursor = value.length): ComposerMentionEdit {
   const safeCursor = Math.max(0, Math.min(value.length, cursor));
   const beforeCursor = value.slice(0, safeCursor);
-  const trigger = beforeCursor.match(/@[^@\s，,。.!！?？；;：:]*$/);
+  const trigger = beforeCursor.match(/[@＠][^@＠\s，,。.!！?？；;：:]*$/);
   const mention = `@${displayName.trim()}`;
   if (trigger?.index !== undefined) {
     const start = trigger.index;
@@ -26,19 +26,19 @@ export function insertComposerMention(value: string, displayName: string, cursor
 }
 
 export function hasComposerMentionTrigger(value: string) {
-  return /@[^@\s，,。.!！?？；;：:]*$/.test(value);
+  return /[@＠][^@＠\s，,。.!！?？；;：:]*$/.test(value);
 }
 
 export function isComposerMentionTriggerAtStart(value: string, cursor = value.length) {
   const beforeCursor = value.slice(0, Math.max(0, Math.min(value.length, cursor)));
-  const trigger = beforeCursor.match(/@[^@\s，,。.!！?？；;：:]*$/);
+  const trigger = beforeCursor.match(/[@＠][^@＠\s，,。.!！?？；;：:]*$/);
   return trigger?.index !== undefined && beforeCursor.slice(0, trigger.index).trim().length === 0;
 }
 
 export function clearComposerMentionTrigger(value: string, cursor = value.length): ComposerMentionEdit {
   const safeCursor = Math.max(0, Math.min(value.length, cursor));
   const beforeCursor = value.slice(0, safeCursor);
-  const trigger = beforeCursor.match(/@[^@\s，,。.!！?？；;：:]*$/);
+  const trigger = beforeCursor.match(/[@＠][^@＠\s，,。.!！?？；;：:]*$/);
   if (trigger?.index === undefined) return { caret: safeCursor, value };
   return {
     caret: trigger.index,
@@ -54,7 +54,7 @@ export function withSelectedMentionLabels(text: string, displayNames: string[]) 
 }
 
 export function mentionLabelsForPlainDisplay(value: string) {
-  return value.replace(/(^|[\s、，,])@(?=[^\s、，,]+)/g, "$1");
+  return value.replace(/(^|[\s、，,])[@＠](?=[^\s、，,]+)/g, "$1");
 }
 
 export function removeComposerMention(value: string, displayName: string): ComposerMentionEdit {

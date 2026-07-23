@@ -17,7 +17,10 @@ export const RESOURCE_UPLOAD_ACCEPT = [
 ].join(",");
 
 const allowedExtensions = new Set(RESOURCE_UPLOAD_ACCEPT.split(","));
-const analyzableDocumentExtensions = new Set([".pdf", ".docx", ".xlsx", ".txt", ".md", ".csv"]);
+const analyzableResourceExtensions = new Set([
+  ".pdf", ".docx", ".xlsx", ".txt", ".md", ".csv",
+  ".jpg", ".jpeg", ".png", ".webp", ".avif", ".heic", ".heif"
+]);
 
 export type ResourceUploadValidation =
   | { ok: true }
@@ -42,7 +45,7 @@ export function validateResourceUploadFile(file: { name: string; size?: number }
 }
 
 export function isAnalyzableDocumentFile(file: { name: string }) {
-  return analyzableDocumentExtensions.has(fileExtension(file.name));
+  return analyzableResourceExtensions.has(fileExtension(file.name));
 }
 
 function fileExtension(name: string) {

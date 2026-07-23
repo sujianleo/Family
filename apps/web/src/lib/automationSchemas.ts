@@ -164,6 +164,15 @@ export const automationActionSchemas: Record<AutomationActionId, AutomationActio
     input: baseInputSchema,
     output: baseOutputSchema
   },
+  "resource.assign_owner": {
+    input: baseInputSchema.extend({
+      owner_member_id: textSchema,
+      owner_name: textSchema,
+      record_id: z.string().trim().min(1),
+      resource_title: textSchema
+    }),
+    output: baseOutputSchema
+  },
   "rag.query.family": {
     input: baseInputSchema,
     output: baseOutputSchema
@@ -252,6 +261,14 @@ export const automationActionSchemas: Record<AutomationActionId, AutomationActio
     output: baseOutputSchema
   },
   "summary.family.monthly": {
+    input: baseInputSchema.extend({
+      end_time: textSchema,
+      family_id: textSchema,
+      start_time: textSchema
+    }),
+    output: baseOutputSchema
+  },
+  "summary.family.yearly": {
     input: baseInputSchema.extend({
       end_time: textSchema,
       family_id: textSchema,

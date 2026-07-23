@@ -11,10 +11,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ inv
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     try {
       const membership = await acceptInvite({
+        avatarSeed: readString(body.avatar_seed),
         avatarUrl: readString(body.avatar_url),
         code: readString(body.code),
         displayName: readString(body.display_name),
         inviteId,
+        password: readString(body.password),
+        phone: readString(body.phone),
         request
       });
       return NextResponse.json({ membership, ok: true });

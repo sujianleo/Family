@@ -38,6 +38,7 @@ import { formatTaskListDateTime } from "@/lib/taskDisplayTime";
 import { useChatPresence } from "@/lib/useChatPresence";
 import { AvatarImage, MemberAvatar, familyAvatarSeeds, resolveMemberAvatarSeed } from "./avatar";
 import { ComposerAutosizeTextarea } from "./composer-autosize-textarea";
+import { FamilyStatusDashboard } from "./family-status-dashboard";
 import { ComposerVoiceIndicator } from "./composer-voice-indicator";
 import { FanmiliStickerMessage, FanmiliStickerSuggestions } from "./fanmili-stickers";
 import { ActivityPlanCard, isActivityPlanBody } from "./activity-plan-card";
@@ -229,6 +230,7 @@ type TopTab = "任务" | "群组";
 type RecordListProps = {
   demoDataEnabled: boolean;
   demoRecordIds: string[];
+  familyName: string;
   initialMemberId: string;
   members: FamilyMember[];
   navItems: NavItem[];
@@ -389,6 +391,7 @@ const composerSessionTimeoutMs = 5 * 60 * 1000;
 const lifeLogPromptVersion = "life-log-ai-prompt-v1";
 const tusUploadConcurrency = 2;
 const maxRenderedChatMessages = 60;
+const familyAssistantPrefillEvent = "family-assistant-prefill";
 const defaultCollapsedGroups: Record<string, boolean> = { 任务: true, 群组: true, 资料: true };
 const taskSortModes = ["default", "due", "status", "member"] as const;
 type TaskSortMode = typeof taskSortModes[number];
@@ -544,7 +547,7 @@ const chatDismissTravelRatio = 0.92;
 const chatDismissCloseProgress = 0.38;
 const chatDismissCloseVelocity = 0.85;
 
-export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, members, records }: RecordListProps) {
+export function RecordList({ demoDataEnabled, demoRecordIds, familyName, initialMemberId, members, records }: RecordListProps) {
   const activeTab: TopTab = "任务";
   const [sessionMemberId, setSessionMemberId] = useState(initialMemberId || currentMemberId);
   const [perspectiveMembers, setPerspectiveMembers] = useState(members);
@@ -708,7 +711,13 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
       legacyAvatarSeed !== sessionMember?.avatarSeed &&
       (!scopedAvatarSeed || scopedAvatarSeed === sessionMember?.avatarSeed)
     );
-    const hydratedAvatarSeed = shouldMigrateLegacyAvatar ? legacyAvatarSeed : scopedAvatarSeed || sessionMember?.avatarSeed || "current-member";
+    const storedAvatarIsInitialDefault = scopedAvatarSeed === "current-member"
+      && Boolean(sessionMember?.avatarSeed && sessionMember.avatarSeed !== "current-member");
+    const hydratedAvatarSeed = shouldMigrateLegacyAvatar
+      ? legacyAvatarSeed
+      : storedAvatarIsInitialDefault
+        ? sessionMember?.avatarSeed || "current-member"
+        : scopedAvatarSeed || sessionMember?.avatarSeed || "current-member";
     const scopedAvatarProfile = loadStoredJson<Partial<MemberAvatarProfile>>(memberAvatarProfileKey);
     const legacyAvatarProfile = sessionMemberId === "me" ? loadStoredJson<Partial<MemberAvatarProfile>>(recordListStorageKeys.avatarProfile) : null;
     const hydratedAvatarProfile = loadMemberAvatarProfile(
@@ -1013,9 +1022,11 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
     }
 
     setLocalRecords((currentRecords) => {
+      const nextById = new Map(nextRecords.map((record) => [record.id, record]));
       const knownIds = new Set(currentRecords.map((record) => record.id));
+      const refreshedRecords = currentRecords.map((record) => nextById.get(record.id) || record);
       const freshRecords = nextRecords.filter((record) => !knownIds.has(record.id));
-      return freshRecords.length ? [...freshRecords, ...currentRecords] : currentRecords;
+      return freshRecords.length ? [...freshRecords, ...refreshedRecords] : refreshedRecords;
     });
 
     for (const record of nextRecords) {
@@ -1210,8 +1221,9 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
       minute: "2-digit",
       hour12: false
     });
+    const contentHashes = await Promise.all(acceptedFiles.map(hashResourceFile));
     const uploadBatchId = `resource-upload-${Date.now()}`;
-    const pendingResources = acceptedFiles.map((file) => {
+    const pendingResources = acceptedFiles.map((file, index) => {
       const assetType = assetTypeFromFile(file);
       const localPreviewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
       return {
@@ -1220,6 +1232,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
         title: stripFileExtension(file.name),
         summary: `我上传 · ${uploadedAt}`,
         ownerName: currentMemberName,
+        ownerMemberId: currentMemberId,
         createdByMemberId: currentMemberId,
         spaceId: coreSpaceId,
         audience: "core",
@@ -1231,6 +1244,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
         sourceFiles: [
           {
             cacheUrl: localPreviewUrl,
+            contentHash: contentHashes[index],
             name: file.name,
             previewUrl: localPreviewUrl,
             size: file.size,
@@ -1271,6 +1285,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
           ...pendingResource,
           previewUrl: persistentPreviewUrl,
           sourceFiles: [{
+            contentHash: contentHashes[index],
             name: acceptedFiles[index].name,
             originalUrl,
             previewUrl: persistentPreviewUrl,
@@ -1287,33 +1302,46 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
       const completedById = new Map(completedResources.map((resource) => [resource.id, resource]));
       setLocalRecords((currentRecords) => currentRecords.map((record) => completedById.get(record.id) || record));
       const assistantParts = [...rejectedMessages];
+      let activeResource: Pick<FamilyRecord, "id" | "title"> | undefined;
       for (const resource of completedResources.filter((record) => record.uploadState !== "error")) {
-        await enqueueFamilyRecord(resource).catch(() => undefined);
+        const saveResult = await enqueueFamilyRecord(resource).catch(() => null);
+        if (!saveResult) {
+          assistantParts.push(`《${resource.title}》上传完成，但保存记录失败，请重试。`);
+          continue;
+        }
+        const savedResource = saveResult.record || { ...resource, id: saveResult.id };
+        activeResource = { id: savedResource.id, title: savedResource.title };
+        if (saveResult.deduplicated) {
+          setLocalRecords((currentRecords) => currentRecords.filter((record) => record.id !== resource.id));
+          assistantParts.push(`《${savedResource.title}》已经在资料库里，本次没有重复保存。`);
+        }
         await enqueueMetaEvent({
           type: "resource_uploaded",
           actorMemberId: currentMemberId,
           actorName: currentMemberName,
-          recordId: resource.id,
+          recordId: savedResource.id,
           spaceId: coreSpaceId,
-          text: resource.title,
+          text: savedResource.title,
           metadata: {
             action: "upload_resource_from_task_page",
             concurrency: tusUploadConcurrency,
             inputText: resource.title,
             protocol: "tus",
-            resource
+            contentHash: savedResource.sourceFiles?.[0]?.contentHash,
+            deduplicated: Boolean(saveResult.deduplicated),
+            resource: savedResource
           }
         });
-        const sourceFile = resource.sourceFiles?.[0];
+        const sourceFile = savedResource.sourceFiles?.[0];
         if (sourceFile && isAnalyzableDocumentFile(sourceFile)) {
-          const insight = await requestResourceInsight(resource);
+          const insight = await requestResourceInsight(savedResource);
           if (insight) {
             assistantParts.push([insight.analysisText, insight.question].filter(Boolean).join("\n"));
           } else {
-            assistantParts.push(`《${resource.title}》已保存并记录到本次 AI 对话，但解析服务暂时没有返回结果。`);
+            assistantParts.push(`《${savedResource.title}》已保存并记录到本次 AI 对话，但解析服务暂时没有返回结果。`);
           }
         } else {
-          assistantParts.push(`已保存图片《${resource.title}》，并记录到本次 AI 对话。`);
+          assistantParts.push(`已保存图片《${savedResource.title}》，并记录到本次 AI 对话。`);
         }
       }
       const failedCount = completedResources.filter((record) => record.uploadState === "error").length;
@@ -1324,6 +1352,7 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
         if (localUrl?.startsWith("blob:")) URL.revokeObjectURL(localUrl);
       }), 1_000);
       return {
+        activeResource,
         answer,
         state: "done",
         voiceStatus: `已加入资料 ${completedResources.length - failedCount}`
@@ -1692,6 +1721,21 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
         }
       }}
     >
+      <FamilyStatusDashboard
+        currentMemberId={sessionMemberId}
+        currentMemberName={currentMemberName}
+        familyName={familyName}
+        members={displayMembers}
+        onAskAssistant={(text) => window.dispatchEvent(new CustomEvent(familyAssistantPrefillEvent, { detail: { text } }))}
+        onOpenRecord={(record) => {
+          if (record.kind === "task" || isGroupChatRecord(record)) setSelectedTaskId(record.id);
+          else setSelectedResourceId(record.id);
+        }}
+        records={localRecords}
+      />
+      <details className="family-library">
+        <summary>查看任务、群聊与资料</summary>
+        <div className="family-library-content">
       <RecordGroup
         collapsed={Boolean(collapsedGroups["任务"])}
         collapsible
@@ -1747,6 +1791,8 @@ export function RecordList({ demoDataEnabled, demoRecordIds, initialMemberId, me
         title="资料"
         variant="source"
       />
+        </div>
+      </details>
 
       <CaptureComposer
         accountSettingsToken={accountSettingsToken}
@@ -2980,6 +3026,7 @@ type CaptureComposerProps = {
 };
 
 type ResourceUploadOutcome = {
+  activeResource?: Pick<FamilyRecord, "id" | "title">;
   answer: string;
   state: "done" | "error";
   voiceStatus: string;
@@ -3039,6 +3086,7 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
 
 function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, avatarProfile, avatarSeed, members, onAvatarSettingsSave, onAutomationRecords, onCreateGroupChatTask, onOpenRelatedRecord, onQuickCapture, onUploadResources, records, resumeFocusToken, suspended }: CaptureComposerProps) {
   const currentMemberName = avatarProfile.displayName || defaultCurrentMemberName;
+  const liteBackend = process.env.NEXT_PUBLIC_FAMILY_APP_BACKEND === "sqlite";
 
   function runAutomationAction(
     actionId: AutomationActionId,
@@ -3094,6 +3142,7 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
   const composerSubmitSeqRef = useRef(0);
   const composerDraftVersionRef = useRef(0);
   const conversationSessionIdRef = useRef(composerSession.id);
+  const activeResourceRef = useRef<Pick<FamilyRecord, "id" | "title"> | null>(null);
   const assistantDialogueStateRef = useRef<AssistantDialogueState | undefined>(undefined);
   const composerConversationDismissedRef = useRef(false);
   const voiceStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -3112,6 +3161,19 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
   }, []);
 
   useEffect(() => {
+    if (activeResourceRef.current) return;
+    const latestUploadMessage = [...composerSession.messages].reverse().find((message) =>
+      message.role === "user" && message.text.startsWith("上传附件：")
+    );
+    if (!latestUploadMessage) return;
+    const uploadedName = latestUploadMessage.text.slice("上传附件：".length).split("、")[0]?.trim();
+    const resource = records.find((record) =>
+      Boolean(record.sourceFiles?.length) && (!uploadedName || record.fileName === uploadedName || record.title === stripFileExtension(uploadedName))
+    );
+    if (resource) activeResourceRef.current = { id: resource.id, title: resource.title };
+  }, [composerSession.messages, records]);
+
+  useEffect(() => {
     if (!composerSessionHydrated) {
       return;
     }
@@ -3124,6 +3186,18 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
   useEffect(() => {
     inputValueRef.current = inputValue;
   }, [inputValue]);
+
+  useEffect(() => {
+    const prefillAssistant = (event: Event) => {
+      const text = event instanceof CustomEvent && typeof event.detail?.text === "string" ? event.detail.text.trim() : "";
+      if (!text) return;
+      handleInputChange(text);
+      setComposerSheetOpen(false);
+      window.requestAnimationFrame(() => focusComposerInput("base"));
+    };
+    window.addEventListener(familyAssistantPrefillEvent, prefillAssistant);
+    return () => window.removeEventListener(familyAssistantPrefillEvent, prefillAssistant);
+  }, []);
 
   useEffect(() => {
     const cursorKey = `family-app.knowledge-inquiry-cursor.${currentMemberId}`;
@@ -3444,10 +3518,20 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
     const text = inputValue.trim();
     const submittedMentionIds = [...selectedMentionIds];
     const submittedMentionMembers = members.filter((member) => submittedMentionIds.includes(member.id));
+    const submittedAssigneeMentionIds = submittedMentionMembers
+      .filter((member) => member.relationshipRole !== "guest" && !member.householdRoles?.includes("assistant"))
+      .map((member) => member.id);
     const assistantInputText = withSelectedMentionLabels(text, submittedMentionMembers.map((member) => member.displayName));
 
     if (!text && selectedMentionIds.length > 0) {
       const selectedMembers = members.filter((member) => submittedMentionIds.includes(member.id) && member.relationshipRole !== "guest" && !member.householdRoles?.includes("assistant"));
+      if (selectedMembers.length === 0 && submittedMentionMembers.some((member) => member.householdRoles?.includes("assistant"))) {
+        setSelectedMentionIds([]);
+        setMentionPickerOpen(false);
+        setSlashMenuOpen(false);
+        setTemporaryVoiceStatus("选中小饭大人后，继续输入你想说的内容");
+        return;
+      }
       const memberIds = selectedMembers.map((member) => member.id);
       const title = buildMentionOnlyGroupTitle(selectedMembers.map((member) => member.displayName));
       const groupResult = onCreateGroupChatTask("", { memberIds, title });
@@ -3478,6 +3562,20 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
     }
     // 先记录原始输入并创建整理中的结果卡，再开始任何路由或网络请求。
     beginAssistantTurn(assistantInputText);
+    const resourceOwner = resolveResourceOwnerFromText(text, members, currentMemberId);
+    if (activeResourceRef.current && resourceOwner) {
+      setInputValue("");
+      setSelectedMentionIds([]);
+      setMentionPickerOpen(false);
+      setSlashMenuOpen(false);
+      await runGenericAssistantAction("resource.assign_owner", text, {
+        owner_member_id: resourceOwner.id,
+        owner_name: resourceOwner.displayName,
+        record_id: activeResourceRef.current.id,
+        resource_title: activeResourceRef.current.title
+      });
+      return;
+    }
     if (pendingKnowledgeInquiry?.status === "awaiting_user_input") {
       setInputValue("");
       await runGenericAssistantAction("member.knowledge.provide_input", text, {
@@ -3502,9 +3600,9 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
       localPreflightRoute.kind === "fallback" &&
       localPreflightRoute.suggestedAction === "task.create.input";
     const shouldOfferTaskSuggestion =
-      shouldSuggestTaskFromText(initialFocusText, { contextTab: activeTab, mentionedMemberIds: submittedMentionIds, senderMemberId: currentMemberId }) ||
+      shouldSuggestTaskFromText(initialFocusText, { contextTab: activeTab, mentionedMemberIds: submittedAssigneeMentionIds, senderMemberId: currentMemberId }) ||
       shouldOfferComposerTaskCard(initialFocusText);
-    const directMentionedTask = submittedMentionIds.length > 0 && shouldOfferTaskSuggestion;
+    const directMentionedTask = submittedAssigneeMentionIds.length > 0 && shouldOfferTaskSuggestion;
     setInputValue("");
     setSelectedMentionIds([]);
     setMentionPickerOpen(false);
@@ -3525,6 +3623,19 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
         setAutomationFeedback(createAutomationFeedback("done", answer, undefined, { displayTarget: "inline_assistant", displayType: "task_candidate", links: false }));
         return;
       }
+    }
+
+    const naturalGroupMemberIds = resolveGroupMemberIdsFromText(text, members, currentMemberId);
+    if (naturalGroupMemberIds.length && /(?:一起|一块|共同).{0,4}(?:聊聊|聊天|说说)|(?:拉上?|叫上?).{0,18}(?:群聊|群组|群)|(?:群聊|群组).{0,8}(?:妈妈|老妈|姐姐|老姐|家人)/.test(text.replace(/\s+/g, ""))) {
+      const groupMembers = members.filter((member) => naturalGroupMemberIds.includes(member.id));
+      const title = buildMentionOnlyGroupTitle(groupMembers.map((member) => member.displayName));
+      const groupResult = onCreateGroupChatTask(text, { memberIds: naturalGroupMemberIds, title });
+      const answer = `${groupResult.reused ? "已进入" : "已创建"}群聊：${groupResult.title}`;
+      void appendUiConversationTurn(text, answer);
+      setAutomationFeedback(createAutomationFeedback("done", answer, undefined, { displayTarget: "inline_assistant", displayType: "chat_reply", links: false }));
+      setPendingSuggestion(null);
+      setPendingTaskText("");
+      return;
     }
 
     const composerIntent = compileComposerIntent(text);
@@ -3550,7 +3661,8 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
         createContextualGroup(contextualRoute.parameters.groupPlan);
         return;
       }
-      onCreateGroupChatTask(text);
+      const explicitMemberIds = [...new Set([...submittedAssigneeMentionIds, ...naturalGroupMemberIds])];
+      onCreateGroupChatTask(text, explicitMemberIds.length ? { memberIds: explicitMemberIds } : undefined);
       const answer = `群聊已创建：${composerIntent.fields.title}`;
       void appendUiConversationTurn(text, answer);
       setAutomationFeedback(createAutomationFeedback("done", answer, undefined, { displayTarget: "inline_assistant", displayType: "chat_reply", links: false }));
@@ -3673,11 +3785,11 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
 
     setIsSuggesting(true);
     setAutomationFeedback({ state: "running", text: "正在整理任务..." });
-    const localSuggestion = suggestOpenVolunteerQuestion(routedFocusText, members) || suggestAssignment(routedFocusText, members, currentMemberId, submittedMentionIds);
+    const localSuggestion = suggestOpenVolunteerQuestion(routedFocusText, members) || suggestAssignment(routedFocusText, members, currentMemberId, submittedAssigneeMentionIds);
     const requestedSuggestion: AssignmentSuggestion = directTimedTask
       ? localSuggestion
-      : (await requestAssignmentSuggestion(routedFocusText, submittedMentionIds, activeTab, 4200)) || localSuggestion;
-    const rawSuggestion = keepLocalSelfAssignment(localSuggestion, submittedMentionIds, currentMemberId)
+      : (await requestAssignmentSuggestion(routedFocusText, submittedAssigneeMentionIds, activeTab, 4200)) || localSuggestion;
+    const rawSuggestion = keepLocalSelfAssignment(localSuggestion, submittedAssigneeMentionIds, currentMemberId)
       ? { ...requestedSuggestion, suggestedAssignees: localSuggestion.suggestedAssignees, reason: localSuggestion.reason }
       : requestedSuggestion;
     const reminder = parseTaskReminder(routedFocusText);
@@ -3812,7 +3924,7 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
     composerDraftVersionRef.current += 1;
     setInputValue(value);
     setMentionPickerOpen(hasComposerMentionTrigger(value));
-    setSlashMenuOpen(hasComposerSlashTrigger(value) && !value.includes("@"));
+    setSlashMenuOpen(hasComposerSlashTrigger(value) && !/[@＠]/.test(value));
     const shouldClearFeedback = automationFeedback !== null && automationFeedback.state !== "running";
     if (!shouldClearFeedback) {
       return;
@@ -4220,7 +4332,10 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
     handleAssistantActionResult(result, answer, { state: result ? "done" : "error" });
   }
 
-  const mentionableMembers = members.filter((member) => member.id !== currentMemberId && member.relationshipRole !== "guest" && !member.householdRoles?.includes("assistant"));
+  const humanMentionableMembers = members.filter((member) => member.id !== currentMemberId && member.relationshipRole !== "guest" && !member.householdRoles?.includes("assistant"));
+  const mentionableMembers = humanMentionableMembers.length > 0 || !liteBackend
+    ? humanMentionableMembers
+    : members.filter((member) => member.householdRoles?.includes("assistant"));
   const selectedMentionMembers = mentionableMembers.filter((member) => selectedMentionIds.includes(member.id));
   const showMentionPicker = mentionPickerOpen && !pendingSuggestion && mentionableMembers.length > 0;
   const showSlashMenu = slashMenuOpen && !showMentionPicker && !pendingSuggestion;
@@ -4392,7 +4507,12 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
       };
     }
 
-    void appendUiConversationTurn(uploadPrompt, outcome.answer);
+    if (outcome.activeResource) activeResourceRef.current = outcome.activeResource;
+
+    void appendUiConversationTurn(uploadPrompt, outcome.answer, outcome.activeResource ? {
+      activeResourceId: outcome.activeResource.id,
+      activeResourceTitle: outcome.activeResource.title
+    } : undefined);
     setAutomationFeedback(createAutomationFeedback(outcome.state, outcome.answer, undefined, {
       displayTarget: "inline_assistant",
       displayType: "chat_reply",
@@ -4635,6 +4755,12 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
               }}
               onCompositionStart={() => setIsComposingText(true)}
               onBlur={() => setIsComposingText(false)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
               onFocus={() => {
                 if (composerSession.messages.length > 0) setComposerSheetOpen(true);
               }}
@@ -4741,7 +4867,11 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
     }
   }
 
-  async function appendUiConversationTurn(userText: string, assistantText: string) {
+  async function appendUiConversationTurn(
+    userText: string,
+    assistantText: string,
+    entityState?: { activeResourceId?: string; activeResourceTitle?: string }
+  ) {
     const promptResult = buildLifeLogPromptResult(userText, assistantText);
     await enqueueMetaEvent({
       type: "app_chat_turn",
@@ -4751,6 +4881,7 @@ function CaptureComposer({ accountSettingsToken, activeTab, aiConnectedToken, av
       text: userText,
       metadata: {
         assistantText,
+        entityState,
         actionButtons: promptResult.action_buttons,
         lifeLogPromptResult: promptResult,
         modelName: "local-composer-router",
@@ -4827,10 +4958,11 @@ function MentionPicker({
   onToggle: (memberId: string) => void;
   selectedIds: string[];
 }) {
+  const hasHumanMember = members.some((member) => !member.householdRoles?.includes("assistant"));
   return (
     <div className={["mention-picker", className].filter(Boolean).join(" ")} aria-label="选择艾特成员">
       <div className="mention-options">
-        <button
+        {hasHumanMember ? <button
           className={selectedIds.length === members.length ? "mention-option mention-all-option active" : "mention-option mention-all-option"}
           type="button"
           aria-label="艾特全家"
@@ -4842,7 +4974,7 @@ function MentionPicker({
             全
           </span>
           <span className="mention-relation">全家</span>
-        </button>
+        </button> : null}
         {members.map((member) => (
           <button
             className={selectedIds.includes(member.id) ? "mention-option active" : "mention-option"}
@@ -5119,7 +5251,29 @@ function AvatarPickerSheet({
 
   async function updatePassword() {
     if (isLocalFamilyAuth()) {
-      setPasswordMessage("当前账号密码由本机管理员维护。");
+      if (newPassword.length < 8) {
+        setPasswordMessage("新密码至少需要 8 位");
+        return;
+      }
+      if (newPassword !== passwordRepeat) {
+        setPasswordMessage("两次输入的密码不一致");
+        return;
+      }
+      setPasswordSaving(true);
+      const response = await familyFetch("/api/auth/password", {
+        body: JSON.stringify({ password: newPassword }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      }).catch(() => null);
+      const payload = response ? await response.json().catch(() => ({})) as { detail?: string } : {};
+      setPasswordSaving(false);
+      if (!response?.ok) {
+        setPasswordMessage(payload.detail || "密码修改失败，请重试。");
+        return;
+      }
+      setNewPassword("");
+      setPasswordRepeat("");
+      setPasswordMessage("密码已更新");
       return;
     }
     if (newPassword.length < 8) {
@@ -5495,7 +5649,10 @@ function FamilyInviteCard({ draft, inviterName, onDismiss }: { draft: FamilyInvi
         <div>{familyInviteAvatarSeeds.map((seed) => <button aria-label={`选择头像 ${seed}`} aria-pressed={avatarSeed === seed} className={avatarSeed === seed ? "selected" : ""} key={seed} type="button" onClick={() => setAvatarSeed(seed)}><AvatarImage alt="" decoding="sync" height={38} label={displayName} loading="eager" seed={seed} width={38} /></button>)}<button aria-pressed={!avatarSeed} className={!avatarSeed ? "selected later" : "later"} type="button" onClick={() => setAvatarSeed("")}>稍后</button></div>
       </div>
       {error ? <p className="family-invite-error" role="alert">{error}</p> : null}
-      <button className="family-invite-primary" disabled={busy} type="button" onClick={() => void createFamilyInvite()}>{busy ? "正在生成…" : "确认并生成邀请"}</button>
+      <div className="family-invite-actions">
+        <button className="family-invite-cancel" disabled={busy} type="button" onClick={onDismiss}>取消</button>
+        <button className="family-invite-primary" disabled={busy} type="button" onClick={() => void createFamilyInvite()}>{busy ? "正在生成…" : "确认并生成邀请"}</button>
+      </div>
       <small>对方注册后仍需家庭管理员确认</small>
     </section>
   );
@@ -5584,7 +5741,16 @@ function InlineAssistantCard({
             </div>
             <em>{resourceParsePresentation.typeLabel}</em>
           </header>
-          <p>{resourceParsePresentation.preview}</p>
+          {resourceParsePresentation.items.length ? (
+            <dl className="assistant-resource-parse-sections">
+              {resourceParsePresentation.items.map((item, index) => (
+                <div className={item.tone} key={`${item.label}-${index}`}>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : <p>{resourceParsePresentation.preview}</p>}
           <details onClick={(event) => event.stopPropagation()}>
             <summary>
               <span>查看完整解析</span>
@@ -5594,7 +5760,9 @@ function InlineAssistantCard({
           </details>
         </div>
       ) : (
-        <pre>{entry.role === "assistant" ? entry.text : <TimeHighlightedText text={entry.text} />}</pre>
+        entry.role === "assistant"
+          ? <AssistantFormattedText text={entry.text} />
+          : <pre><TimeHighlightedText text={entry.text} /></pre>
       )}
       {entry.links?.length ? (
         <div className="assistant-result-links">
@@ -5643,6 +5811,30 @@ function InlineAssistantCard({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function AssistantFormattedText({ text }: { text: string }) {
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (lines.length <= 1) return <p className="assistant-formatted-text single">{text}</p>;
+  return (
+    <div className="assistant-formatted-text">
+      {lines.map((line, index) => {
+        const section = line.match(/^(结论|依据|下一步|建议|注意|说明|当前情况|成长变化)[：:]\s*(.+)$/);
+        if (section) {
+          return <div className="assistant-formatted-section" key={`${index}-${line}`}><strong>{section[1]}</strong><span>{section[2]}</span></div>;
+        }
+        const heading = line.match(/^(?:#{1,3}\s*|\*\*)([^*#]+?)(?:\*\*)?$/);
+        if (heading || /^(结论|依据|下一步|建议|注意|说明|当前情况|成长变化)$/.test(line)) {
+          return <strong className="assistant-formatted-heading" key={`${index}-${line}`}>{heading?.[1]?.trim() || line}</strong>;
+        }
+        const bullet = line.match(/^(?:[-*•]\s+|\d+[.)、]\s*)(.+)$/);
+        if (bullet) {
+          return <div className="assistant-formatted-bullet" key={`${index}-${line}`}><i aria-hidden="true" /><span>{bullet[1]}</span></div>;
+        }
+        return <p key={`${index}-${line}`}>{line}</p>;
+      })}
+    </div>
   );
 }
 
@@ -6548,7 +6740,7 @@ function ChatFullscreen({
     const existingMemberIds = new Set(chatMemberIds);
     return Array.from(membersById.values()).filter((member) => member.relationshipRole !== "guest" && !member.householdRoles?.includes("assistant") && !existingMemberIds.has(member.id));
   }, [chatMemberIds, membersById]);
-  const showChatMentionPicker = messageInput.includes("@") && chatMentionableMembers.length > 0;
+  const showChatMentionPicker = /[@＠]/.test(messageInput) && chatMentionableMembers.length > 0;
   const judgementMembers = members.filter(isEligibleJudgementMember);
   const activeJudgement = judgements.find((item) => item.status === "active" && (!item.endsAt || new Date(item.endsAt) > new Date()));
   const displayedJudgement = activeJudgement;
@@ -6761,7 +6953,7 @@ function ChatFullscreen({
 
   function handleChatMessageInputChange(value: string) {
     setMessageInput(value);
-    if (!value.includes("@")) {
+    if (!/[@＠]/.test(value)) {
       setSelectedChatMemberIds([]);
     }
   }
@@ -8193,8 +8385,14 @@ function memberScopedStorage(storage: Pick<Storage, "getItem" | "setItem">, memb
 
 function loadMemberAvatarProfile(key: string, member?: FamilyMember): MemberAvatarProfile {
   const stored = loadStoredJson<Partial<MemberAvatarProfile>>(key);
+  const storedDisplayName = typeof stored?.displayName === "string" ? stored.displayName.trim().slice(0, 16) : "";
+  const displayName = storedDisplayName === defaultCurrentMemberName
+    && member?.displayName
+    && member.displayName !== defaultCurrentMemberName
+    ? member.displayName
+    : storedDisplayName || member?.displayName || defaultCurrentMemberName;
   return {
-    displayName: typeof stored?.displayName === "string" && stored.displayName.trim() ? stored.displayName.trim().slice(0, 16) : member?.displayName || defaultCurrentMemberName,
+    displayName,
     nickname: typeof stored?.nickname === "string" ? stored.nickname.slice(0, 16) : "",
     title: typeof stored?.title === "string" && stored.title.trim() ? stored.title.trim().slice(0, 24) : member?.role || "家庭成员"
   };
@@ -8811,7 +9009,7 @@ function resolveAllMentionIds(members: FamilyMember[], selectedIds: string[]) {
 }
 
 function stripLatestMentionTrigger(value: string) {
-  const triggerIndex = value.lastIndexOf("@");
+  const triggerIndex = Math.max(value.lastIndexOf("@"), value.lastIndexOf("＠"));
   if (triggerIndex < 0) {
     return value;
   }
@@ -9549,6 +9747,59 @@ function readWebSearchResults(payload: unknown): WebSearchResultItem[] {
       title: typeof item.title === "string" ? item.title : undefined
     }))
     .filter((item) => item.title || item.link || item.snippet);
+}
+
+async function hashResourceFile(file: File) {
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return `sha256:${[...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function resolveResourceOwnerFromText(text: string, members: FamilyMember[], currentMemberId: string) {
+  const normalized = text.trim().replace(/\s+/g, "");
+  if (!/^(?:(?:这份|这个|该)?(?:报告|资料|文件)?)?(?:属于|归属(?:到)?|归到|算作|改成|设为)|^(?:这份|这个|该)(?:报告|资料|文件)?是/.test(normalized)) return null;
+
+  const nonAssistantMembers = members.filter((member) =>
+    member.relationshipRole !== "guest" && !member.householdRoles?.includes("assistant")
+  );
+  const aliasGroups = nonAssistantMembers
+    .filter((member) => member.id !== currentMemberId)
+    .map((member) => ({
+      member,
+      aliases: [
+        member.displayName,
+        member.relationshipLabel,
+        ...(member.householdRoles || []),
+        ...(member.relationshipRole === "spouse" ? ["老婆", "媳妇", "媳妇儿", "妻子", "爱人", "老公", "丈夫", "先生"] : [])
+      ].filter((value): value is string => Boolean(value?.trim()))
+    }));
+  const matched = aliasGroups.find(({ aliases }) => aliases.some((alias) => normalized.includes(alias.replace(/\s+/g, ""))));
+  if (matched) return matched.member;
+
+  if (/(?:属于|归属|归到|算作|是)(?:我|我的)(?:$|资料|报告|文件)/.test(normalized)) {
+    return nonAssistantMembers.find((member) => member.id === currentMemberId) || null;
+  }
+  return null;
+}
+
+function resolveGroupMemberIdsFromText(text: string, members: FamilyMember[], currentMemberId: string) {
+  const normalized = text.replace(/[\s@，,、]/g, "");
+  const aliasesByMember = members
+    .filter((member) => member.id !== currentMemberId && member.relationshipRole !== "guest" && !member.householdRoles?.includes("assistant"))
+    .map((member) => ({
+      aliases: [
+        member.displayName,
+        member.relationshipLabel,
+        ...(member.householdRoles || []),
+        ...(member.id === "mom" ? ["妈妈", "老妈", "妈"] : []),
+        ...(member.id === "dad" ? ["爸爸", "老爸", "爸"] : []),
+        ...(member.id === "sister" ? ["姐姐", "老姐", "姐"] : []),
+        ...(member.id === "wife" || member.relationshipRole === "spouse" ? ["老婆", "媳妇", "媳妇儿", "妻子", "爱人"] : [])
+      ].filter((value): value is string => Boolean(value?.trim())),
+      member
+    }));
+  return aliasesByMember
+    .filter(({ aliases }) => aliases.some((alias) => normalized.includes(alias.replace(/\s+/g, ""))))
+    .map(({ member }) => member.id);
 }
 
 function stableMemberColor(member?: FamilyMember) {

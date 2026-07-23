@@ -454,6 +454,7 @@ function normalizeStoredProvider(provider: AiProvider): AiProvider {
   return {
     ...provider,
     kind: inferredKind,
+    endpoint: inferredKind === "custom" ? provider.endpoint : preset.endpoint,
     deepModel: provider.deepModel || legacyModel || preset.deepModels[0]?.id || "",
     fastModel: provider.fastModel || legacyModel || preset.fastModels[0]?.id || ""
   };
@@ -1025,16 +1026,23 @@ export function SettingsDrawer({ currentMemberId, isFamilyAdmin, members, open, 
                     <div className="member-management-list">
                       {members.filter((member) => member.relationshipRole !== "guest" && !member.householdRoles?.includes("assistant")).map((member) => {
                         const isCurrentMember = member.id === currentMemberId;
-                        const relationshipLabel = isCurrentMember
-                          ? "我"
-                          : normalizeFamilyRelationshipLabel(member.relationshipLabel || member.role || member.displayName || "家庭成员", member.displayName);
+                        const relationshipLabel = member.displayName
+                          || normalizeFamilyRelationshipLabel(member.relationshipLabel || member.role || "家庭成员", member.displayName);
                         return (
                         <div className="member-management-row" key={member.id}>
-                          <button className="member-management-main" type="button" onClick={() => { setMemberDetailId(member.id); setMemberDeleteCandidate(""); }}>
+                          <button className="member-management-main" type="button" onClick={() => {
+                            setMemberDeleteCandidate("");
+                            if (isCurrentMember) {
+                              onClose();
+                              onOpenAccount();
+                              return;
+                            }
+                            setMemberDetailId(member.id);
+                          }}>
                             <span className="member-management-avatar">
                               <AvatarImage alt="" decoding="sync" height={42} label={member.displayName} loading="eager" seed={member.avatarSeed} width={42} />
                             </span>
-                            <span><strong>{relationshipLabel}{isCurrentMember ? <em>管理员</em> : null}</strong><small>{formatMemberProfileSummary(member.profile)}</small></span>
+                            <span><strong>{relationshipLabel}{isCurrentMember ? <em>管理员</em> : null}</strong><small>{isCurrentMember ? "修改头像、姓名与密码" : formatMemberProfileSummary(member.profile)}</small></span>
                           </button>
                           {isCurrentMember ? null : memberDeleteCandidate === member.id ? (
                             <div className="member-delete-confirm">
@@ -1066,7 +1074,6 @@ export function SettingsDrawer({ currentMemberId, isFamilyAdmin, members, open, 
                       <SettingCard compact title="数据同步" description="在你的设备之间保持最新。"><ToggleRow label="自动同步" checked={sync} onChange={setSync} /></SettingCard>
                       <div className="general-link-list">
                         <button onClick={() => void openGeneralDetail("storage")} type="button"><span><b>存储管理</b><small>查看本机网页数据占用</small></span><i>›</i></button>
-                        <button onClick={() => { onClose(); onOpenAccount(); }} type="button"><span><b>账户设置</b><small>头像、姓名与密码</small></span><i>›</i></button>
                         <button onClick={() => void openGeneralDetail("about")} type="button"><span><b>关于饭米粒</b><small>版本 1.0.0</small></span><i>›</i></button>
                       </div>
                       {isFamilyAuthRequired() ? <button className="settings-signout-button" type="button" onClick={onSignOut}>退出账号</button> : null}
@@ -1515,8 +1522,8 @@ function ProviderCard({ provider, usage, onChange, onRemove, onTest }: { provide
         </div>
       </div>
       <div className="compact-fields">
-        <CompactField label="API endpoint" value={provider.endpoint} onChange={(endpoint) => onChange({ endpoint })} />
-        <label className="compact-field"><span>API key</span><input onChange={(event) => onChange({ apiKey: event.target.value })} placeholder="sk-••••••••" type="password" value={provider.apiKey} /></label>
+        {kind === "custom" ? <CompactField label="API endpoint" value={provider.endpoint} onChange={(endpoint) => onChange({ endpoint })} /> : null}
+        <label className="compact-field"><span>API key</span><input autoCapitalize="none" autoComplete="new-password" autoCorrect="off" name={`${kind}-api-key`} onChange={(event) => onChange({ apiKey: event.target.value })} placeholder="sk-••••••••" spellCheck={false} type="password" value={provider.apiKey} /></label>
         <ModelField
           custom={kind === "custom"}
           label="深度思考"

@@ -2,7 +2,11 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AutomationActionId } from "../automationRegistry";
+import { zonedDateToUtc } from "../temporal";
 import { startBackgroundOrganizationScheduler } from "./backgroundOrganizationScheduler";
+import { isLiteBackend } from "./familyBackend";
+import { readLiteFamilyMembers } from "./liteRepository";
+import { readFamilyMembersWithOverrides } from "./memberOverrides";
 
 export type AssistantScheduledJob = {
   actionId: AutomationActionId;
@@ -22,9 +26,10 @@ type JobExecutor = (job: AssistantScheduledJob) => Promise<void>;
 export type RecurringExecutor = (actionId: AutomationActionId, parameters: Record<string, unknown>) => Promise<void>;
 
 export const builtInAssistantSchedules = [
-  { actionId: "background.organize.daily" as const, hour: 22, id: "daily-organization", period: "daily" as const },
-  { actionId: "meta.summary.weekly" as const, dayOfWeek: 0, hour: 22, id: "weekly-organization", period: "weekly" as const },
-  { actionId: "meta.summary.monthly" as const, dayOfMonth: 1, hour: 22, id: "monthly-organization", period: "monthly" as const }
+  { actionId: "summary.personal.daily" as const, hour: 22, id: "langchain-member-card-daily", perMember: true, period: "daily" as const },
+  { actionId: "summary.family.weekly" as const, dayOfWeek: 0, hour: 22, id: "langchain-summary-weekly", period: "weekly" as const },
+  { actionId: "summary.family.monthly" as const, dayOfMonth: 1, hour: 0, id: "langchain-summary-monthly", period: "monthly" as const },
+  { actionId: "summary.family.yearly" as const, dayOfMonth: 1, hour: 0, id: "langchain-summary-yearly", month: 1, period: "yearly" as const }
 ];
 
 const schedulerIntervalMs = 15_000;
@@ -36,7 +41,12 @@ const schedulableActionIds = new Set<AutomationActionId>([
   "background.organize.daily",
   "meta.summary.daily",
   "meta.summary.weekly",
-  "meta.summary.monthly"
+  "meta.summary.monthly",
+  "summary.family.daily",
+  "summary.family.weekly",
+  "summary.family.monthly",
+  "summary.family.yearly",
+  "summary.personal.daily"
 ]);
 let dueSweepRunning = false;
 let recurringSweepRunning = false;
@@ -161,18 +171,47 @@ export async function runRecurringAssistantSchedules(options: {
     const state = await readScheduleState(options.dataDir);
     let completed = 0;
     let failed = 0;
-    for (const schedule of builtInAssistantSchedules.filter((item) => item.period !== "daily")) {
+    for (const schedule of builtInAssistantSchedules) {
       if (local.hour < schedule.hour) continue;
       if (schedule.period === "weekly" && local.dayOfWeek !== schedule.dayOfWeek) continue;
       if (schedule.period === "monthly" && local.dayOfMonth !== schedule.dayOfMonth) continue;
-      const runKey = schedule.period === "monthly" ? `${local.year}-${local.month}` : `${local.year}-${local.month}-${local.day}`;
+      if (schedule.period === "yearly" && (local.month !== schedule.month || local.dayOfMonth !== schedule.dayOfMonth)) continue;
+      const runKey = schedule.period === "yearly"
+        ? `${local.year}`
+        : schedule.period === "monthly"
+          ? `${local.year}-${local.month}`
+          : `${local.year}-${local.month}-${local.day}`;
+      if ("perMember" in schedule && schedule.perMember) {
+        const members = isLiteBackend()
+          ? readLiteFamilyMembers()
+          : await readFamilyMembersWithOverrides(options.dataDir || "data", now);
+        for (const member of members.filter((item) => !item.householdRoles?.includes("assistant"))) {
+          const memberStateKey = `${schedule.id}:${member.id}`;
+          if (state[memberStateKey] === runKey) continue;
+          try {
+            await options.execute(schedule.actionId, {
+              ...buildRecurringSummaryParameters(schedule.period, now, local, timeZone),
+              actor_member_id: member.id,
+              actor_name: member.displayName
+            });
+            completed += 1;
+          } catch {
+            failed += 1;
+          }
+          state[memberStateKey] = runKey;
+          await writeScheduleState(state, options.dataDir);
+        }
+        continue;
+      }
       if (state[schedule.id] === runKey) continue;
       try {
-        await options.execute(schedule.actionId, { now: now.toISOString(), time_zone: timeZone });
+        await options.execute(schedule.actionId, buildRecurringSummaryParameters(schedule.period, now, local, timeZone));
         state[schedule.id] = runKey;
         await writeScheduleState(state, options.dataDir);
         completed += 1;
       } catch {
+        state[schedule.id] = runKey;
+        await writeScheduleState(state, options.dataDir);
         failed += 1;
       }
     }
@@ -180,6 +219,36 @@ export async function runRecurringAssistantSchedules(options: {
   } finally {
     recurringSweepRunning = false;
   }
+}
+
+function buildRecurringSummaryParameters(
+  period: "daily" | "weekly" | "monthly" | "yearly",
+  now: Date,
+  local: ReturnType<typeof localScheduleParts>,
+  timeZone: string
+) {
+  let start: Date;
+  let end = now;
+  if (period === "monthly") {
+    const currentMonthStart = zonedDateToUtc(local.year, local.month, 1, 0, 0, timeZone);
+    const previousMonth = new Date(Date.UTC(local.year, local.month - 2, 1));
+    start = zonedDateToUtc(previousMonth.getUTCFullYear(), previousMonth.getUTCMonth() + 1, 1, 0, 0, timeZone);
+    end = currentMonthStart;
+  } else if (period === "yearly") {
+    start = zonedDateToUtc(local.year - 1, 1, 1, 0, 0, timeZone);
+    end = zonedDateToUtc(local.year, 1, 1, 0, 0, timeZone);
+  } else {
+    const localDate = new Date(Date.UTC(local.year, local.month - 1, local.day));
+    if (period === "weekly") localDate.setUTCDate(localDate.getUTCDate() - 6);
+    start = zonedDateToUtc(localDate.getUTCFullYear(), localDate.getUTCMonth() + 1, localDate.getUTCDate(), 0, 0, timeZone);
+  }
+  return {
+    end_time: end.toISOString(),
+    family_id: process.env.FAMILY_APP_LOCAL_AUTH_FAMILY_ID || process.env.SUPABASE_DEFAULT_FAMILY_ID || "local-family",
+    now: now.toISOString(),
+    start_time: start.toISOString(),
+    time_zone: timeZone
+  };
 }
 
 function resolveJobPath(dataDir?: string) {

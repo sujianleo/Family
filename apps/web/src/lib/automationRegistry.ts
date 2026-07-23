@@ -26,6 +26,7 @@ export type AutomationActionId =
   | "judgement.create"
   | "record.organize"
   | "resource.organize"
+  | "resource.assign_owner"
   | "rag.query.family"
   | "rag.query.resources"
   | "rag.query.memory"
@@ -38,6 +39,7 @@ export type AutomationActionId =
   | "summary.family.daily"
   | "summary.family.weekly"
   | "summary.family.monthly"
+  | "summary.family.yearly"
   | "memory.save"
   | "memory.extract.family"
   | "profile.refresh.deep"
@@ -72,6 +74,7 @@ export type AutomationPipelineId =
   | "pipeline.summary.daily"
   | "pipeline.summary.weekly"
   | "pipeline.summary.monthly"
+  | "pipeline.summary.yearly"
   | "pipeline.profile.deep_refresh";
 
 export type AutomationPipelineStep = {
@@ -445,6 +448,23 @@ export const automationActions: AutomationActionDefinition[] = [
     }
   },
   {
+    id: "resource.assign_owner",
+    unit: "action",
+    kind: "server",
+    label: "修改资料归属",
+    description: "把一份已存在的家庭资料归属到指定家庭成员，确认后才写入",
+    requiresConfirmation: true,
+    sideEffectLevel: "medium",
+    slashAliases: ["资料属于", "修改资料归属", "resource.assign_owner"],
+    parameters: {
+      owner_member_id: "string",
+      owner_name: "string",
+      record_id: "string",
+      resource_title: "string",
+      text: "string"
+    }
+  },
+  {
     id: "rag.query.family",
     unit: "action",
     kind: "server",
@@ -609,6 +629,22 @@ export const automationActions: AutomationActionDefinition[] = [
     requiresConfirmation: false,
     sideEffectLevel: "low",
     slashAliases: ["家庭月总结", "全家月总结", "总结本月全家"],
+    parameters: {
+      end_time: "string",
+      family_id: "string",
+      start_time: "string",
+      text: "string"
+    }
+  },
+  {
+    id: "summary.family.yearly",
+    unit: "action",
+    kind: "server",
+    label: "家庭年总结",
+    description: "使用 DeepSeek V4 基于可追溯来源生成家庭年总结",
+    requiresConfirmation: false,
+    sideEffectLevel: "low",
+    slashAliases: ["家庭年总结", "全家年总结", "总结今年全家"],
     parameters: {
       end_time: "string",
       family_id: "string",
@@ -800,6 +836,17 @@ export const automationPipelines: AutomationPipelineDefinition[] = [
       text: "string"
     },
     steps: [{ actionId: "summary.family.monthly" }]
+  },
+  {
+    id: "pipeline.summary.yearly",
+    unit: "pipeline",
+    label: "每年深度总结",
+    description: "使用 DeepSeek V4 生成每年总结卡片",
+    slashAliases: ["深度年总结", "每年深度总结", "summary.yearly"],
+    parameters: {
+      text: "string"
+    },
+    steps: [{ actionId: "summary.family.yearly" }]
   },
   {
     id: "pipeline.profile.deep_refresh",

@@ -4,8 +4,13 @@ import { readSupabaseAnonKey, readSupabaseServerUrl } from "./supabaseConfig";
 import { createRawEvent } from "./eventStore";
 import { createServiceSupabaseClient } from "./supabaseServer";
 import { isLocalAuthConfigured, localAuthContext, readLocalSession } from "./localAuth";
+import { createPasswordHash } from "./localAuth";
 import { createRecordNotifications } from "./notificationStore";
-import type { Database, Json } from "../types";
+import { isLiteBackend } from "./familyBackend";
+import { createLiteInvite, createLiteJoinRequest, expireLiteInvite, readLiteInvite, revokeLiteInvite } from "./liteInviteRepository";
+import { readLiteAccounts, readLiteInstallation, saveLiteFamilyRecord } from "./liteRepository";
+import { normalizePhoneNumber } from "../phoneAuth";
+import type { Database, FamilyRecord, Json } from "../types";
 
 export type InviteType = "family" | "group";
 export type InviteStatus = "active" | "expired" | "revoked";
@@ -47,6 +52,7 @@ export function verifyInviteCode(inviteId: string, code: string, expectedHash: s
 
 export async function readInvitePreview(inviteId: string, code?: string) {
   assertInviteId(inviteId);
+  if (isLiteBackend()) return readLiteInvitePreview(inviteId, code);
   const service = requireServiceClient();
   const { data, error } = await service.from("invites").select("*").eq("id", inviteId).maybeSingle();
   if (error) throw new InviteAccessError("暂时无法读取邀请。", 503);
@@ -89,6 +95,7 @@ export async function createInvite(input: {
   type: InviteType;
   maxUse?: number;
 }) {
+  if (isLiteBackend()) return createLiteFamilyInvite(input);
   const service = requireServiceClient();
   const actor = await resolveActor(service, input.actorMemberId, input.familyId);
   const inviteId = randomUUID();
@@ -139,8 +146,9 @@ export async function createInvite(input: {
   };
 }
 
-export async function acceptInvite(input: { avatarUrl?: string; code: string; displayName: string; inviteId: string; request: Request }) {
+export async function acceptInvite(input: { avatarSeed?: string; avatarUrl?: string; code: string; displayName: string; inviteId: string; password?: string; phone?: string; request: Request }) {
   assertInviteId(input.inviteId);
+  if (isLiteBackend()) return acceptLiteFamilyInvite(input);
   const identity = await requireInviteUser(input.request);
   const service = requireServiceClient();
   const { data: invite, error } = await service.from("invites").select("*").eq("id", input.inviteId).maybeSingle();
@@ -269,6 +277,15 @@ function maskPhone(phone: string) {
 }
 
 export async function revokeInvite(input: { actorMemberId: string; actorName?: string; familyId: string; inviteId: string }) {
+  if (isLiteBackend()) {
+    const actor = readLiteAccounts().find((account) => account.memberId === input.actorMemberId && account.familyId === input.familyId);
+    if (!actor) throw new InviteAccessError("只有家庭成员可以撤销邀请。", 403);
+    const invite = readLiteInvite(input.inviteId);
+    if (!invite || invite.familyId !== input.familyId) throw new InviteAccessError("邀请不存在。", 404);
+    if (invite.createdByMemberId !== actor.memberId && actor.role !== "admin") throw new InviteAccessError("只有邀请人或家庭管理员可以撤销。", 403);
+    if (invite.status !== "revoked") revokeLiteInvite(invite.id, input.familyId);
+    return { id: invite.id, status: "revoked" as const };
+  }
   const service = requireServiceClient();
   const actor = await resolveActor(service, input.actorMemberId, input.familyId);
   const { data: invite, error } = await service.from("invites").select("id, family_id, status, created_by").eq("id", input.inviteId).maybeSingle();
@@ -286,6 +303,140 @@ function requireServiceClient() {
   const client = createServiceSupabaseClient();
   if (!client) throw new InviteAccessError("邀请服务尚未配置。", 503);
   return client;
+}
+
+async function createLiteFamilyInvite(input: {
+  actorMemberId: string;
+  actorName?: string;
+  familyId: string;
+  requestOrigin: string;
+  targetId?: string;
+  targetName?: string;
+  avatarSeed?: string;
+  relationshipLabel?: string;
+  relationshipRole?: "parent" | "child" | "spouse" | "relative";
+  type: InviteType;
+  maxUse?: number;
+}) {
+  if (input.type !== "family") throw new InviteAccessError("邀请服务尚未配置。", 503);
+  const actor = readLiteAccounts().find((account) => account.memberId === input.actorMemberId && account.familyId === input.familyId);
+  if (!actor) throw new InviteAccessError("只有家庭成员可以邀请。", 403);
+  const installation = readLiteInstallation();
+  if (!installation || installation.familyId !== input.familyId) throw new InviteAccessError("家庭不存在。", 404);
+  const inviteId = randomUUID();
+  const code = createInviteCode();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60_000).toISOString();
+  createLiteInvite({
+    codeHash: hashInviteCode(inviteId, code),
+    createdByMemberId: actor.memberId,
+    expiresAt,
+    familyId: input.familyId,
+    id: inviteId,
+    maxUse: 1,
+    metadata: {
+      avatar_seed: input.avatarSeed?.trim().slice(0, 80) || "",
+      entry_path: "/",
+      family_name: installation.familyName,
+      inviter_name: input.actorName?.trim() || actor.displayName,
+      reciprocal_label: reciprocalRelationshipLabel(input.relationshipLabel || "", actor.memberId),
+      relationship_label: input.relationshipLabel?.trim().slice(0, 24) || "其他亲属",
+      relationship_role: input.relationshipRole || "relative",
+      target_name: input.targetName?.trim().slice(0, 40) || "",
+      title: "加入家庭"
+    },
+    status: "active",
+    type: "family"
+  });
+  return {
+    code,
+    expiresAt,
+    id: inviteId,
+    link: `${input.requestOrigin.replace(/\/$/, "")}/invite/${inviteId}`,
+    maxUse: 1,
+    type: "family" as const
+  };
+}
+
+function readLiteInvitePreview(inviteId: string, code?: string) {
+  const invite = readLiteInvite(inviteId);
+  if (!invite) throw new InviteAccessError("邀请不存在。", 404);
+  const status = effectiveStatus(invite.status, invite.expiresAt, invite.usedCount, invite.maxUse);
+  if (status === "expired" && invite.status === "active") expireLiteInvite(invite.id);
+  const verified = Boolean(code && verifyInviteCode(invite.id, code, invite.codeHash));
+  return {
+    expiresAt: invite.expiresAt,
+    id: invite.id,
+    maxUse: invite.maxUse,
+    remainingUses: Math.max(0, invite.maxUse - invite.usedCount),
+    status,
+    type: invite.type,
+    verified,
+    ...(verified ? {
+      avatarSeed: readText(invite.metadata.avatar_seed),
+      familyName: readText(invite.metadata.family_name),
+      inviterName: readText(invite.metadata.inviter_name),
+      relationshipLabel: readText(invite.metadata.relationship_label),
+      targetName: readText(invite.metadata.target_name),
+      title: readText(invite.metadata.title)
+    } : {})
+  };
+}
+
+async function acceptLiteFamilyInvite(input: { avatarSeed?: string; code: string; displayName: string; inviteId: string; password?: string; phone?: string }) {
+  const invite = readLiteInvite(input.inviteId);
+  if (!invite) throw new InviteAccessError("邀请不存在。", 404);
+  assertUsable(invite.status, invite.expiresAt, invite.usedCount, invite.maxUse);
+  if (invite.type !== "family") throw new InviteAccessError("这个 Lite 邀请类型暂不支持。", 503);
+  if (!verifyInviteCode(input.inviteId, input.code, invite.codeHash)) throw new InviteAccessError("验证码不正确。", 403);
+  const displayName = input.displayName.trim().slice(0, 40);
+  const phone = normalizePhoneNumber(input.phone || "");
+  const password = input.password || "";
+  if (!displayName) throw new InviteAccessError("请填写你在这里的称呼。", 400);
+  if (!phone) throw new InviteAccessError("请输入正确的手机号。", 400);
+  if (password.length < 8 || password.length > 72) throw new InviteAccessError("密码需为 8–72 个字符。", 400);
+  const metadata = invite.metadata;
+  let requestId = "";
+  try {
+    requestId = createLiteJoinRequest({
+      avatarSeed: input.avatarSeed?.trim().slice(0, 80) || readText(metadata.avatar_seed),
+      displayName,
+      familyId: invite.familyId,
+      inviteId: invite.id,
+      passwordHash: await createPasswordHash(password),
+      phone,
+      relationshipLabel: readText(metadata.relationship_label) || "其他亲属",
+      relationshipRole: readRelationshipRole(metadata.relationship_role)
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "PHONE_ALREADY_REGISTERED") throw new InviteAccessError("这个手机号已经注册，请直接登录。", 409);
+    if (error instanceof Error && error.message === "PHONE_ALREADY_PENDING") throw new InviteAccessError("这个手机号已有待审核的申请。", 409);
+    if (error instanceof Error && error.message === "INVITE_ALREADY_CLAIMED") throw new InviteAccessError("这个邀请已经被使用。", 409);
+    throw error;
+  }
+  const adminIds = readLiteAccounts().filter((account) => account.familyId === invite.familyId && account.role === "admin").map((account) => account.memberId);
+  if (!adminIds.length) throw new InviteAccessError("家庭管理员账号尚未绑定。", 503);
+  const recordId = randomUUID();
+  const relationshipLabel = readText(metadata.relationship_label) || "其他亲属";
+  const record: FamilyRecord = {
+    assignmentReason: "家庭成员加入申请",
+    assignmentStatus: "assigned",
+    assigneeMemberIds: adminIds,
+    audience: "core",
+    id: recordId,
+    inviteId: invite.id,
+    joinRequestId: requestId,
+    kind: "task",
+    ownerName: "成员申请",
+    relationshipLabel,
+    status: "todo",
+    summary: `${displayName} 申请以“${relationshipLabel}”身份加入家庭（${maskPhone(phone)}）。`,
+    tags: ["成员申请", "待管理员确认"],
+    taskActionType: "approval",
+    title: `确认 ${displayName} 加入家庭`,
+    updatedAt: "刚刚"
+  };
+  saveLiteFamilyRecord(invite.familyId, invite.createdByMemberId, record);
+  return { entry_path: "/", join_request_id: requestId, status: "pending_admin_approval" };
 }
 
 async function resolveActor(service: NonNullable<ReturnType<typeof createServiceSupabaseClient>>, memberId: string, familyId: string) {
@@ -337,7 +488,7 @@ function assertInviteId(value: string) {
 }
 function clampUses(value?: number) { return Math.min(100, Math.max(1, Number.isFinite(value) ? Math.floor(value as number) : 10)); }
 function inviteSecret() {
-  const secret = process.env.INVITE_CODE_SECRET || process.env.FAMILY_APP_CONFIRMATION_SECRET || process.env.GUEST_CHAT_CODE_SECRET;
+  const secret = process.env.INVITE_CODE_SECRET || process.env.FAMILY_APP_CONFIRMATION_SECRET || process.env.GUEST_CHAT_CODE_SECRET || process.env.FAMILY_APP_LOCAL_AUTH_SESSION_SECRET;
   if (!secret) throw new InviteAccessError("邀请验证码服务尚未配置。", 503);
   return secret;
 }

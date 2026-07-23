@@ -13,12 +13,13 @@ export function resolveMemberAvatarSeed(member: Pick<FamilyMember, "avatarSeed" 
 
 export function avatarUrl(seed: string, label = "", variant: "color" | "mono" = "color"): string {
   const normalizedSeed = seed.trim();
+  if (/^data:image\//i.test(normalizedSeed) || /^(?:https?:)?\/\//i.test(normalizedSeed)) {
+    return normalizedSeed;
+  }
   let resolvedSeed = normalizedSeed;
   if (/^\/avator\//.test(normalizedSeed)) {
     resolvedSeed = normalizedSeed.split("/").pop()?.replace(/\.(png|svg)(\?.*)?$/i, "") || "";
   }
-  const isLegacyImage = /^data:image\//i.test(normalizedSeed) || /^(?:https?:)?\/\//i.test(normalizedSeed);
-  if (isLegacyImage) resolvedSeed = label.trim();
   const role = resolveAvatarRole(resolvedSeed || label.trim() || "family");
   return `/avator/${role.key}.png?v=${avatarAssetVersion}&variant=${variant}`;
 }
